@@ -1,8 +1,12 @@
 # b4igo-email-agent
 
 
+## Setup
 
-
+Install the requirements (it's recommended to create a pyenv or conda environment first).
+ ```bash
+   pip install -r requirements.txt
+   ```
 Install the git hooks:
    ```bash
    pre-commit install
