@@ -89,14 +89,10 @@ Run main loop of codebase.
 This repository implements a variety of tools that automatically enforce
 certain style constraints: 
 
-- **isort**
-    - Sorts and organizes imports
-- **black**
-    - Python code formatter
-- **flake8**
-    - Linting and style checking
-- **mypy**
-    - Static type checker
+- **isort**: Sorts and organizes imports
+- **black**: Python code formatter
+- **flake8**: Linting and style checking
+- **mypy**: Static type checker
 
 These are integrated as pre-commit hooks, but each has a vscode
 extension that can allow one to run them dynamically while coding.
