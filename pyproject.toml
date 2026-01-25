@@ -1,0 +1,10 @@
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pydocstyle]
+convention = "google"
+add-ignore = ["D100", "D104", "D107"]
+# D100 - Missing docstring in public module
+# D104 - Missing docstring in public package  
+# D107 - Missing docstring in __init__
