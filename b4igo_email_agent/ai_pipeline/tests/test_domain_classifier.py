@@ -1,4 +1,5 @@
 """Unit tests for DomainClassifier."""
+
 from email.message import EmailMessage
 from unittest import TestCase
 
@@ -35,6 +36,9 @@ def _sample_emails() -> list[EmailMessage]:
 
 class TestDomainClassifier(TestCase):
     """Unit tests for DomainClassifier classification."""
+
+    emails: list[EmailMessage]
+    classifier: DomainClassifier
 
     @classmethod
     def setUpClass(cls) -> None:

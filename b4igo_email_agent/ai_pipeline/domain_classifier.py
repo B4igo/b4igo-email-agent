@@ -1,35 +1,33 @@
 """Defines DomainClassifier of AI Pipeline."""
+
 from email.message import EmailMessage
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-from numpy.typing import NDArray
 from typing import Dict, Literal, TypedDict
 
+import numpy as np
+from numpy.typing import NDArray
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+
 # Email category type
-EmailCategory = Literal[
-    "education",
-    "medical",
-    "legal",
-    "personal",
-    "other"
-]
+EmailCategory = Literal["education", "medical", "legal", "personal", "other"]
+
 
 class EmailClassificationResult(TypedDict):
+    """Result of email domain classification."""
+
     category: EmailCategory
     confidence: float
     all_scores: dict[str, float]
 
+
 class DomainClassifier:
-    """
-    Semantic email categorizer using sentence-transformers.
-    Uses all-MiniLM-L6-v2 model for lightweight, accurate classification.
-    """
-    
+    """Semantic email categorizer using sentence-transformers."""
+
     def __init__(self):
+        """Initialize model, embeddings, and categories."""
         # TODO- Will host model in isolated runtime eventually
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+
         # Define category descriptions for semantic matching
         self._categories = {
             "education": (
@@ -60,7 +58,7 @@ class DomainClassifier:
                 "General correspondence, miscellaneous emails, newsletters, "
                 "notifications, automated messages, system alerts, "
                 "uncategorized content that doesn't fit specific categories"
-            )
+            ),
         }
         self._category_embeddings: Dict[str, NDArray] = {}
         self._category_list: list[str] = []
@@ -77,7 +75,7 @@ class DomainClassifier:
         self._category_matrix = np.vstack(
             [self._category_embeddings[category] for category in self._category_list]
         )
-    
+
     def _build_email_text(self, email: EmailMessage) -> str:
         body = ""
         if email.is_multipart():
@@ -93,12 +91,8 @@ class DomainClassifier:
             f"Subject: {email.get('subject', '')}\n\n{body[:1000]}"
         )
 
-    def classify(
-        self,
-        emails: list[EmailMessage]
-    ) -> list[EmailClassificationResult]:
-        """
-        Classify emails into predefined categories using batch processing.
+    def classify(self, emails: list[EmailMessage]) -> list[EmailClassificationResult]:
+        """Classify emails into predefined categories using batch processing.
 
         Args:
             emails (list[EmailMessage]): List of emails with 'subject', 'from',
@@ -115,10 +109,7 @@ class DomainClassifier:
         email_embeddings = np.array(
             self.model.encode(email_texts, convert_to_tensor=False)
         )
-        similarity_matrix = cosine_similarity(
-            email_embeddings,
-            self._category_matrix
-        )
+        similarity_matrix = cosine_similarity(email_embeddings, self._category_matrix)
 
         results: list[EmailClassificationResult] = []
         for scores in similarity_matrix:
@@ -127,10 +118,12 @@ class DomainClassifier:
                 for category, score in zip(self._category_list, scores)
             }
             best_index = int(np.argmax(scores))
-            results.append(EmailClassificationResult(
-                category=self._category_list[best_index], # type: ignore
-                confidence=float(scores[best_index]),
-                all_scores=similarities
-            ))
+            results.append(
+                EmailClassificationResult(
+                    category=self._category_list[best_index],  # type: ignore
+                    confidence=float(scores[best_index]),
+                    all_scores=similarities,
+                )
+            )
 
         return results
