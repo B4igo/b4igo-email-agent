@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Check if we're using the venv Python
-if not sys.executable.startswith('/home/err/repo/.venv'):
+if not sys.executable.startswith("/home/err/repo/.venv"):
     logger.warning(
         f"Warning: Not using virtual environment Python.\n"
         f"Current Python: {sys.executable}\n"
@@ -36,12 +36,14 @@ try:
     from src.email.email_parser import format_email_for_llm
 except ImportError:
     logger.warning("email_parser not found, using mock")
+
     def format_email_for_llm(email) -> str:
         """Mock email formatter."""
         return f"From: {email.from_address}\nSubject: {email.subject}\n\n{email.body}"
 
+
 try:
-    from src.agent.schemas import VaultExtraction, AgentResponse
+    from src.agent.schemas import AgentResponse, VaultExtraction
 except ImportError:
     logger.warning("schemas not found, using mock")
     try:
@@ -55,78 +57,96 @@ except ImportError:
             "pydantic is required but not installed. "
             "Install with: pip install -r requirements.txt"
         )
-    
+
     class VaultExtraction(BaseModel):
         """Mock VaultExtraction."""
+
         vault_type: str
         confidence: float
         extracted_data: dict
         suggested_actions: list = []
         reasoning: str = ""
-    
+
     class AgentResponse(BaseModel):
         """Mock AgentResponse."""
+
         extraction: VaultExtraction
         processing_time: float
         tools_used: list = []
         errors: list = []
         warnings: list = []
 
-from src.email.models import EmailInput
+
 from src.agent.workflow import AgentWorkflow
+from src.email.models import EmailInput
 
 
 class MockAgent:
     """Mock ReActAgent for testing purposes.
-    
+
     Replace this with a real ReActAgent instance for actual testing.
     Example:
         from llama_index.agent import ReActAgent
         from llama_index.llms.ollama import Ollama
-        
+
         llm = Ollama(model="llama3.2", request_timeout=120.0)
         agent = ReActAgent.from_tools([], llm=llm, verbose=True)
     """
-    
+
     def __init__(self):
         self.call_count = 0
-    
+
     def chat(self, prompt: str) -> Any:
         """Mock chat method that returns a simple response."""
         self.call_count += 1
         logger.info(f"Mock agent called (call #{self.call_count})")
         logger.debug(f"Prompt: {prompt[:200]}...")
-        
+
         # Return a mock response object
         class MockResponse:
             def __init__(self, text: str):
                 self.response = text
-        
+
         # Simulate different responses based on the step
         if "classify" in prompt.lower() or "vault type" in prompt.lower():
             # Check if email content suggests healthcare
-            if any(word in prompt.lower() for word in ["appointment", "doctor", "medical", "health", "prescription", "test result"]):
-                return MockResponse("""
+            if any(
+                word in prompt.lower()
+                for word in [
+                    "appointment",
+                    "doctor",
+                    "medical",
+                    "health",
+                    "prescription",
+                    "test result",
+                ]
+            ):
+                return MockResponse(
+                    """
                 {
                     "vault_type": "healthcare",
                     "confidence": 0.95,
                     "reasoning": "Email contains healthcare-related information",
                     "multiple_vaults": null
                 }
-                """)
+                """
+                )
             else:
-                return MockResponse("""
+                return MockResponse(
+                    """
                 {
                     "vault_type": "communications",
                     "confidence": 0.85,
                     "reasoning": "Email appears to be a general communication message",
                     "multiple_vaults": null
                 }
-                """)
+                """
+                )
         elif "extract" in prompt.lower():
             # Check if this is healthcare extraction
             if "healthcare" in prompt.lower() or "appointment" in prompt.lower():
-                return MockResponse("""
+                return MockResponse(
+                    """
                 {
                     "appointments": [
                         {
@@ -162,9 +182,11 @@ class MockAgent:
                     "conditions": [],
                     "notes": "Annual checkup scheduled"
                 }
-                """)
+                """
+                )
             else:
-                return MockResponse("""
+                return MockResponse(
+                    """
                 {
                     "sender": "test@example.com",
                     "recipient": "user@example.com",
@@ -173,18 +195,21 @@ class MockAgent:
                     "action_items": ["Review test results"],
                     "deadline": null
                 }
-                """)
+                """
+                )
         elif "validate" in prompt.lower():
-            return MockResponse("""
+            return MockResponse(
+                """
             {
                 "validation_passed": true,
                 "validation_errors": [],
                 "reasoning": "All required fields are present and valid"
             }
-            """)
+            """
+            )
         else:
             return MockResponse("Mock response for testing")
-    
+
     async def chat_async(self, prompt: str) -> Any:
         """Mock async chat method."""
         return self.chat(prompt)
@@ -249,42 +274,46 @@ async def test_workflow_async():
     logger.info("=" * 60)
     logger.info("Testing Email Workflow (Async)")
     logger.info("=" * 60)
-    
+
     # Create mock agent
     agent = MockAgent()
-    
+
     # Create workflow
     workflow = AgentWorkflow(agent=agent)
-    
+
     # Create test email
     email = create_test_email()
-    
+
     # Test the workflow
     try:
         logger.info(f"Processing email: {email.subject}")
         result = await workflow.process_email_async(email=email)
-        
+
         logger.info("Workflow completed successfully!")
         logger.info(f"Result type: {type(result)}")
-        
-        if hasattr(result, 'extraction'):
+
+        if hasattr(result, "extraction"):
             logger.info(f"Vault type: {result.extraction.vault_type}")
             logger.info(f"Confidence: {result.extraction.confidence}")
-            logger.info(f"Extracted data keys: {list(result.extraction.extracted_data.keys()) if isinstance(result.extraction.extracted_data, dict) else 'N/A'}")
-        
-        if hasattr(result, 'processing_time'):
+            logger.info(
+                f"Extracted data keys: {list(result.extraction.extracted_data.keys()) if isinstance(result.extraction.extracted_data, dict) else 'N/A'}"
+            )
+
+        if hasattr(result, "processing_time"):
             logger.info(f"Processing time: {result.processing_time:.2f}s")
-        
-        if hasattr(result, 'errors') and result.errors:
+
+        if hasattr(result, "errors") and result.errors:
             logger.warning(f"Errors: {result.errors}")
-        
-        if hasattr(result, 'warnings') and result.warnings:
+
+        if hasattr(result, "warnings") and result.warnings:
             logger.warning(f"Warnings: {result.warnings}")
-        
-        logger.info(f"Agent was called {agent.call_count} times (expected: 3 - classify, extract, validate)")
-        
+
+        logger.info(
+            f"Agent was called {agent.call_count} times (expected: 3 - classify, extract, validate)"
+        )
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Workflow test failed: {e}", exc_info=True)
         raise
@@ -295,36 +324,40 @@ def test_workflow_sync():
     logger.info("=" * 60)
     logger.info("Testing Email Workflow (Sync)")
     logger.info("=" * 60)
-    
+
     # Create mock agent
     agent = MockAgent()
-    
+
     # Create workflow
     workflow = AgentWorkflow(agent=agent)
-    
+
     # Create test email
     email = create_test_email()
-    
+
     # Test the workflow
     try:
         logger.info(f"Processing email: {email.subject}")
         result = workflow.process_email(email=email)
-        
+
         logger.info("Workflow completed successfully!")
         logger.info(f"Result type: {type(result)}")
-        
-        if hasattr(result, 'extraction'):
+
+        if hasattr(result, "extraction"):
             logger.info(f"Vault type: {result.extraction.vault_type}")
             logger.info(f"Confidence: {result.extraction.confidence}")
-            logger.info(f"Extracted data keys: {list(result.extraction.extracted_data.keys()) if isinstance(result.extraction.extracted_data, dict) else 'N/A'}")
-        
-        if hasattr(result, 'processing_time'):
+            logger.info(
+                f"Extracted data keys: {list(result.extraction.extracted_data.keys()) if isinstance(result.extraction.extracted_data, dict) else 'N/A'}"
+            )
+
+        if hasattr(result, "processing_time"):
             logger.info(f"Processing time: {result.processing_time:.2f}s")
-        
-        logger.info(f"Agent was called {agent.call_count} times (expected: 3 - classify, extract, validate)")
-        
+
+        logger.info(
+            f"Agent was called {agent.call_count} times (expected: 3 - classify, extract, validate)"
+        )
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Workflow test failed: {e}", exc_info=True)
         raise
@@ -335,70 +368,79 @@ def test_healthcare_workflow():
     logger.info("=" * 60)
     logger.info("Testing Healthcare Email Workflow")
     logger.info("=" * 60)
-    
+
     # Create mock agent
     agent = MockAgent()
-    
+
     # Create workflow
     workflow = AgentWorkflow(agent=agent)
-    
+
     # Create healthcare test email
     email = create_healthcare_test_email()
-    
+
     # Test the workflow
     try:
         logger.info(f"Processing healthcare email: {email.subject}")
         result = workflow.process_email(email=email)
-        
+
         logger.info("Workflow completed successfully!")
         logger.info(f"Result type: {type(result)}")
-        
-        if hasattr(result, 'extraction'):
+
+        if hasattr(result, "extraction"):
             logger.info(f"Vault type: {result.extraction.vault_type}")
             logger.info(f"Confidence: {result.extraction.confidence}")
-            
+
             # Show extracted healthcare data
             extracted = result.extraction.extracted_data
-            logger.info(f"Extracted data keys: {list(extracted.keys()) if isinstance(extracted, dict) else 'N/A'}")
-            
+            logger.info(
+                f"Extracted data keys: {list(extracted.keys()) if isinstance(extracted, dict) else 'N/A'}"
+            )
+
             if isinstance(extracted, dict):
                 if "appointments" in extracted:
                     logger.info(f"Appointments found: {len(extracted['appointments'])}")
-                    for i, apt in enumerate(extracted['appointments'], 1):
-                        logger.info(f"  Appointment {i}: {apt.get('provider', 'N/A')} on {apt.get('date', 'N/A')}")
-                
+                    for i, apt in enumerate(extracted["appointments"], 1):
+                        logger.info(
+                            f"  Appointment {i}: {apt.get('provider', 'N/A')} on {apt.get('date', 'N/A')}"
+                        )
+
                 if "test_results" in extracted:
                     logger.info(f"Test results found: {len(extracted['test_results'])}")
-                
+
                 if "providers" in extracted:
                     logger.info(f"Providers found: {len(extracted['providers'])}")
-            
+
             if result.extraction.suggested_actions:
-                logger.info(f"Suggested actions: {len(result.extraction.suggested_actions)}")
+                logger.info(
+                    f"Suggested actions: {len(result.extraction.suggested_actions)}"
+                )
                 for action in result.extraction.suggested_actions:
                     logger.info(f"  - {action.action_type}: {action.description}")
-        
-        if hasattr(result, 'processing_time'):
+
+        if hasattr(result, "processing_time"):
             logger.info(f"Processing time: {result.processing_time:.2f}s")
-        
-        if hasattr(result, 'errors') and result.errors:
+
+        if hasattr(result, "errors") and result.errors:
             logger.warning(f"Errors: {result.errors}")
-        
-        if hasattr(result, 'warnings') and result.warnings:
+
+        if hasattr(result, "warnings") and result.warnings:
             logger.warning(f"Warnings: {result.warnings}")
-        
-        logger.info(f"Agent was called {agent.call_count} times (expected: 3 - classify, extract, validate)")
-        
+
+        logger.info(
+            f"Agent was called {agent.call_count} times (expected: 3 - classify, extract, validate)"
+        )
+
         # Validate healthcare schema
         try:
             from src.agent.schemas import HealthcareVaultSchema
+
             schema = HealthcareVaultSchema(**extracted)
             logger.info("✓ Healthcare schema validation passed!")
         except Exception as e:
             logger.warning(f"Healthcare schema validation failed: {e}")
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Healthcare workflow test failed: {e}", exc_info=True)
         raise
@@ -406,31 +448,31 @@ def test_healthcare_workflow():
 
 def test_with_real_agent():
     """Example of how to test with a real ReActAgent.
-    
+
     Uncomment and configure this function to test with a real LLM.
     """
     try:
         from llama_index.agent import ReActAgent
         from llama_index.llms.ollama import Ollama
-        
+
         # Configure your LLM (adjust model name and settings as needed)
         llm = Ollama(model="llama3.2", request_timeout=120.0)
-        
+
         # Create agent with tools (add your tools here)
         agent = ReActAgent.from_tools([], llm=llm, verbose=True)
-        
+
         # Create workflow
         workflow = AgentWorkflow(agent=agent)
-        
+
         # Create test email
         email = create_test_email()
-        
+
         # Test
         result = workflow.process_email(email=email)
-        
+
         logger.info("Real agent test completed!")
         return result
-        
+
     except ImportError as e:
         logger.error(f"Could not import required packages: {e}")
         logger.info("Make sure llama-index and llama-index-llms-ollama are installed")
@@ -440,13 +482,13 @@ def test_with_real_agent():
 
 if __name__ == "__main__":
     import sys
-    
+
     # Choose test mode
     if len(sys.argv) > 1:
         mode = sys.argv[1].lower()
     else:
         mode = "sync"
-    
+
     if mode == "async":
         # Run async test
         asyncio.run(test_workflow_async())

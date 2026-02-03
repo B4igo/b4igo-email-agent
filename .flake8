@@ -7,4 +7,5 @@ exclude =
     .venv,
     venv,
     build,
-    dist
+    dist,
+    test_workflow.py

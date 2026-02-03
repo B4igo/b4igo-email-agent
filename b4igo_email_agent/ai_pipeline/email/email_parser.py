@@ -7,6 +7,10 @@ from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Union
 
+from pydantic import ValidationError
+
+from .models import EmailAddress, EmailInput
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -19,10 +23,6 @@ except ImportError:
         "BeautifulSoup4 (bs4) not available. HTML parsing will use fallback parser."
     )
 
-from pydantic import ValidationError
-
-from .models import EmailAddress, EmailInput, EmailMetadata
-
 
 def email_message_to_input(msg: EmailMessage) -> EmailInput:
     """Convert stdlib EmailMessage to EmailInput for pipeline use.
@@ -31,7 +31,11 @@ def email_message_to_input(msg: EmailMessage) -> EmailInput:
     Uses extract_text_content for HTML bodies so text matches classifier input.
     """
     from_raw = msg.get("from", "") or ""
-    from_addr = normalize_address(from_raw) if from_raw else EmailAddress(address="unknown@unknown")
+    from_addr = (
+        normalize_address(from_raw)
+        if from_raw
+        else EmailAddress(address="unknown@unknown")
+    )
     to_raw = msg.get_all("to") or []
     to_address: List[EmailAddress] = [
         normalize_address(addr) for addr in to_raw if isinstance(addr, str)
