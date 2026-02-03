@@ -5,7 +5,13 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from .schemas import VaultAddResult
-from ..email.models import EmailInput
+from ..email.models import EmailInput, EmailMetadata
+from ..email.email_parser import email_input_to_message
+
+from b4igo_email_agent.ai_pipeline.domain_classifier import (
+        DomainClassifier,
+        EmailClassificationResult,
+    )
 
 if TYPE_CHECKING:
     from b4igo_email_agent.ai_pipeline.domain_classifier import (
@@ -65,7 +71,7 @@ def _email_to_vault_data(email: EmailInput) -> Dict[str, Any]:
     if email.metadata is not None:
         data["metadata"] = (
             email.metadata.model_dump()
-            if hasattr(email.metadata, "model_dump")
+            if isinstance(email.metadata, EmailMetadata)
             else email.metadata
         )
     if email.attachments:
@@ -113,12 +119,7 @@ def process_email_to_vault(
     Converts EmailInput to EmailMessage via bridge, calls classifier.classify(),
     then add_email_to_vault with the returned category.
     """
-    from ..email.email_parser import email_input_to_message
 
-    from b4igo_email_agent.ai_pipeline.domain_classifier import (
-        DomainClassifier,
-        EmailClassificationResult,
-    )
 
     msg = email_input_to_message(email)
     results = classifier.classify([msg])
