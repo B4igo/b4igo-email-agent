@@ -23,7 +23,8 @@ class EmailAddress(BaseModel):
         """Build EmailAddress from string, dict, or existing EmailAddress.
 
         Args:
-            v: String address, dict with address/email and optional name, or EmailAddress.
+            v: String address, dict with address/email and optional name,
+                or EmailAddress.
 
         Returns:
             EmailAddress instance.
