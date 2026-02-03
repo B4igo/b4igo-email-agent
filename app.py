@@ -50,7 +50,7 @@ def health_check():
     return jsonify({"status": "healthy", "service": __name__})
 
 # ---- [AUTH] ----
-@app.route('/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST'])
 def login():
     username = request.json.get('username')
     password = request.json.get('password') # TODO: align hash methods frontend -> backend
@@ -78,7 +78,7 @@ def login():
 
 
 # refresh current token
-@app.route('/refresh', methods=['POST'])
+@app.route('/api/auth/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
     current_user = get_jwt_identity()
@@ -88,14 +88,14 @@ def refresh():
     return response
 
 # logout of current credentials
-@app.route('/logout', methods=['POST'])
+@app.route('/api/auth/logout', methods=['POST'])
 def logout():
     response = jsonify({"message": "Logged out"})
     unset_jwt_cookies(response)
     return response
 
 # test if current credentials are valid
-@app.route('/test-credentials', methods=['GET'])
+@app.route('/api/auth/test-credentials', methods=['GET'])
 @jwt_required()
 def protected():
     current_user = get_jwt_identity()
@@ -103,7 +103,7 @@ def protected():
 
 # ---- [CONFIRMATIONS] ----
 
-@app.route('/confirmations', methods=['GET'])
+@app.route('/api/confirmations', methods=['GET'])
 @jwt_required()
 def protected():
     current_user = get_jwt_identity()
@@ -139,7 +139,7 @@ def protected():
         return jsonify({'msg' : f'No confirmations found for {current_user}'})
 
 
-@app.route('/reject-confirmation', methods=['POST'])
+@app.route('/api/reject-confirmation', methods=['POST'])
 @jwt_required()
 def protected():
     try:
@@ -156,7 +156,7 @@ def protected():
         return jsonify({'error' : "Missing 'id' parameter"}), 400
 
 # handles both blanket accept and edits
-@app.route('/accept-confirmation', methods=['POST'])
+@app.route('/api/accept-confirmation', methods=['POST'])
 @jwt_required()
 def protected():
     try:
