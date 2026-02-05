@@ -1,29 +1,41 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import {
-    Box, Button, Card, Stack,
-
-} from '@mui/material'
-import { BrowserRouter, Route, Routes } from "react-router-dom"
+import { Box } from '@mui/material'
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom"
+import Login from "./Pages/Login.tsx"
+import { AuthProvider, RequireAuth } from 'react-auth-kit'
+import {Confirmations} from "./Pages/Confirmations.tsx";
+import Logout from "./Pages/Logout.tsx";
+import NavBar from "./Components/NavBar.tsx";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <BrowserRouter>
-            <Card sx={{ display: 'flex', justifyContent: 'space-between', boxShadow: 3 }}>
-                <Button href="/" aria-label="home" sx={{margin: 1}}>
-                    <Box component="img" src="https://www.b4igo.com/B4iGo-logo.png" alt="home" sx={{ width: 164, height: 32 }} />
-                </Button>
-                <Stack direction="row">
-                    <Button href="/logout" variant="outlined" sx={{margin: 1}}>Logout</Button>
-                    <Button href="/providers" variant="outlined" sx={{margin: 1}}>Manage Email Providers</Button>
-                </Stack>
-            </Card>
-
-            <Routes>
-                <Route path="/" element={<Box>TODO home page with email confirmations</Box>} />
-                <Route path="/providers" element={<Box>TODO email providers page</Box>} />
-                <Route path="/logout" element={<Box>TODO logout page</Box>} />
-            </Routes>
-        </BrowserRouter>
+        <AuthProvider
+            authType="localstorage"
+            authName="_auth"
+            cookieDomain={window.location.hostname}
+            cookieSecure={window.location.protocol === 'https:'}
+        >
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                        path="/*"
+                        element={
+                            <RequireAuth loginPath="/login">
+                                <NavBar>
+                                    <Routes>
+                                        <Route path="/" element={<Confirmations/>} />
+                                        <Route path="/providers" element={<Box>TODO email providers page</Box>} />
+                                        <Route path="/logout" element={<Logout />} />
+                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                    </Routes>
+                                </NavBar>
+                            </RequireAuth>
+                        }
+                    />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
     </React.StrictMode>,
 )
