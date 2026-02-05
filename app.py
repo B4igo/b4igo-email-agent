@@ -1,3 +1,7 @@
+import logging
+import sys
+from flask_cors import CORS
+from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, jsonify, request
 from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
@@ -17,8 +21,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---- [FLASK RUNTIME INIT] ----
+# set the url to the frontend url provided by npm run dev
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=['http://localhost:5173'], supports_credentials=True)
 
 
 # configure Flask to handle larger requests and timeouts
@@ -97,7 +102,7 @@ def logout():
 # test if current credentials are valid
 @app.route('/api/auth/test-credentials', methods=['GET'])
 @jwt_required()
-def protected():
+def test_credentials():
     current_user = get_jwt_identity()
     return jsonify(logged_in_as=current_user), 200
 
@@ -105,7 +110,7 @@ def protected():
 
 @app.route('/api/confirmations', methods=['GET'])
 @jwt_required()
-def protected():
+def confirmations():
     current_user = get_jwt_identity()
 
     # TODO: replace dict with sqlite in-memory
@@ -141,7 +146,7 @@ def protected():
 
 @app.route('/api/reject-confirmation', methods=['POST'])
 @jwt_required()
-def protected():
+def reject_confirmation():
     try:
         data = request.get_json()
         if not data or "id" not in data:
@@ -158,7 +163,7 @@ def protected():
 # handles both blanket accept and edits
 @app.route('/api/accept-confirmation', methods=['POST'])
 @jwt_required()
-def protected():
+def accept_confirmation():
     try:
         data = request.get_json()
         if not data or "id" not in data:
@@ -177,3 +182,6 @@ def protected():
     
     except:
         return jsonify({'error' : "Missing 'id' parameter"}), 400
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
