@@ -9,13 +9,13 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Email category type
-EmailCategory = Literal["education", "medical", "legal", "personal", "other"]
+Domain = Literal["education", "medical", "legal", "personal", "other"]
 
 
 class EmailClassificationResult(TypedDict):
     """Result of email domain classification."""
 
-    category: EmailCategory
+    category: Domain
     confidence: float
     all_scores: dict[str, float]
 
