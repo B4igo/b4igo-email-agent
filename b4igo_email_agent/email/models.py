@@ -94,6 +94,16 @@ class EmailInput(BaseModel):
             return EmailMetadata(**v)
         return None
 
+    def to_text(self) -> str:
+        """Convert email to text format for processing."""
+        return (
+            f"From: {self.from_address}\n"
+            f"To: {', '.join(str(addr) for addr in self.to_address)}\n"
+            f"Cc: {', '.join(str(addr) for addr in self.cc)}\n"
+            f"Bcc: {', '.join(str(addr) for addr in self.bcc)}\n"
+            f"Subject: {self.subject}\n\n{self.body}"
+        )
+
     model_config = {
         "json_encoders": {
             datetime: lambda v: v.isoformat(),

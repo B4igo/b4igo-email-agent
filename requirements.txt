@@ -1,5 +1,6 @@
 pre-commit
 pydantic>=2.0
 numpy
+ollama
 sentence-transformers
 scikit-learn
