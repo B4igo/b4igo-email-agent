@@ -99,3 +99,18 @@ class EmailInput(BaseModel):
             datetime: lambda v: v.isoformat(),
         }
     }
+
+    def to_text(self) -> str:
+        """Convert email to a human-readable text format."""
+        lines = [
+            f"From: {self.from_address}",
+            f"To: {', '.join(str(addr) for addr in self.to_address)}",
+        ]
+        if self.cc:
+            lines.append(f"Cc: {', '.join(str(addr) for addr in self.cc)}")
+        if self.bcc:
+            lines.append(f"Bcc: {', '.join(str(addr) for addr in self.bcc)}")
+        lines.append(f"Subject: {self.subject}")
+        lines.append("")
+        lines.append(self.body)
+        return "\n".join(lines)

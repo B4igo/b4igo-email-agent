@@ -1,5 +1,6 @@
 pre-commit
 pydantic>=2.0
+pydantic[email]
 numpy
 sentence-transformers
 scikit-learn
