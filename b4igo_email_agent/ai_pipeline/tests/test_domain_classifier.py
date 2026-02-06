@@ -1,20 +1,23 @@
 """Unit tests for DomainClassifier."""
 
-from email.message import EmailMessage
+from datetime import datetime
 from unittest import TestCase
 
 from b4igo_email_agent.ai_pipeline.domain_classifier import DomainClassifier
+from b4igo_email_agent.ai_pipeline.email.models import EmailAddress, EmailInput
 
 
-def _build_email(sender: str, subject: str, body: str) -> EmailMessage:
-    message = EmailMessage()
-    message["from"] = sender
-    message["subject"] = subject
-    message.set_content(body)
-    return message
+def _build_email(sender: str, subject: str, body: str) -> EmailInput:
+    return EmailInput(
+        from_address=EmailAddress.from_any(sender),
+        to_address=[EmailAddress.from_any("recipient@example.com")],
+        subject=subject,
+        body=body,
+        received_at=datetime.now(),
+    )
 
 
-def _sample_emails() -> list[EmailMessage]:
+def _sample_emails() -> list[EmailInput]:
     return [
         _build_email(
             "noreply@hospital.com",
@@ -37,7 +40,7 @@ def _sample_emails() -> list[EmailMessage]:
 class TestDomainClassifier(TestCase):
     """Unit tests for DomainClassifier classification."""
 
-    emails: list[EmailMessage]
+    emails: list[EmailInput]
     classifier: DomainClassifier
 
     @classmethod
