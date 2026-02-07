@@ -30,7 +30,7 @@ export default function Login() {
     return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
             <Card sx={{ p: 2, maxWidth: 400, width: '100%', boxShadow: 3 }}>
-                <Typography variant="h5" sx={{ mb: 2 }}>Log in to B4iGo Agentic Email Agent:</Typography>
+                <Typography variant="h5" sx={{ mb: 2 }}>Log in to B4iGo Agentic Email Parser:</Typography>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                 <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <TextField
