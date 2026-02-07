@@ -118,21 +118,21 @@ def confirmations():
         'user' : [
             {
                 'id': 3,
-                'json-payload' : '{"example_key2" : "example_value2"}'
+                'jsonPayload' : '{"example_key2" : "example_value2"}'
             },
             {
                 'id' : 4,
-                'json-payload' : '{"example_key3" : "example_value3"}'
+                'jsonPayload' : '{"example_key3" : "example_value3"}'
             }
         ],
         'admin' : [
             {
                 'id': 0,
-                'json-payload' : '{"example_key" : "example_value"}'
+                'jsonPayload' : '{"example_key" : "example_value"}'
             },
             {
                 'id' : 1,
-                'json-payload' : '{"example_key1" : "example_value1"}'
+                'jsonPayload' : '{"example_key1" : "example_value1"}'
             }
         ]
     }
@@ -171,11 +171,11 @@ def accept_confirmation():
 
         id = data['id']
 
-        if "json-payload" in data:
-            payload = data['json-payload']
+        if "jsonPayload" in data:
+            payload = data['jsonPayload']
 
         # here we would grab either the paylod from the db or use 
-        # the json-payload edit provided.
+        # the jsonPayload edit provided.
         logger.info('adding confirmation #%s to valut', id) #TODO: stubbed B4iGo API call
 
         return 200
