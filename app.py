@@ -155,7 +155,7 @@ def reject_confirmation():
         id = data['id']
         logger.info('removing id %s', id) #TODO: stubbed DB call
 
-        return 200
+        return '', 200
     
     except:
         return jsonify({'error' : "Missing 'id' parameter"}), 400
@@ -178,7 +178,7 @@ def accept_confirmation():
         # the jsonPayload edit provided.
         logger.info('adding confirmation #%s to valut', id) #TODO: stubbed B4iGo API call
 
-        return 200
+        return '', 200
     
     except:
         return jsonify({'error' : "Missing 'id' parameter"}), 400
