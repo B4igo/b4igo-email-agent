@@ -43,7 +43,7 @@ class Database:
         self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS confirmations (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
                 jsonPayload TEXT NOT NULL,
                 FOREIGN KEY (username) REFERENCES users(username)
@@ -92,29 +92,25 @@ class Database:
                 return dict(row)
             return None
 
-    def add_confirmation(
-        self, confirmation_id: int, username: str, json_payload: str
-    ) -> bool:
+    def add_confirmation(self, username: str, json_payload: str) -> Optional[int]:
         """Add a new confirmation for a user.
 
         Args:
-            confirmation_id: Unique confirmation ID
             username: Username this confirmation belongs to
             json_payload: JSON payload string
 
         Returns:
-            True if confirmation was added, False if ID already exists.
+            The generated confirmation ID, or None if user doesn't exist.
         """
         try:
             with self._get_connection() as conn:
-                conn.execute(
-                    "INSERT INTO confirmations (id, username, jsonPayload) "
-                    "VALUES (?, ?, ?)",
-                    (confirmation_id, username, json_payload),
+                cursor = conn.execute(
+                    "INSERT INTO confirmations (username, jsonPayload) VALUES (?, ?)",
+                    (username, json_payload),
                 )
-            return True
+                return cursor.lastrowid
         except sqlite3.IntegrityError:
-            return False
+            return None
 
     def get_confirmations(self, username: str) -> list[dict]:
         """Get all confirmations for a user.

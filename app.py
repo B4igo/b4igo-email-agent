@@ -46,10 +46,10 @@ executor = ThreadPoolExecutor(max_workers=4)
 # Initialize database with example users
 db.add_user("user", "password", "user")
 db.add_user("admin", "adminpass", "admin")
-db.add_confirmation(3, "user", '{"example_key2" : "example_value2"}')
-db.add_confirmation(4, "user", '{"example_key3" : "example_value3"}')
-db.add_confirmation(0, "admin", '{"example_key" : "example_value"}')
-db.add_confirmation(1, "admin", '{"example_key1" : "example_value1"}')
+db.add_confirmation("user", '{"example_key2" : "example_value2"}')
+db.add_confirmation("user", '{"example_key3" : "example_value3"}')
+db.add_confirmation("admin", '{"example_key" : "example_value"}')
+db.add_confirmation("admin", '{"example_key1" : "example_value1"}')
 
 # set the secret key for JWT signing
 app.config["JWT_SECRET_KEY"] = str(uuid4())  # TODO: save as file on server
@@ -132,27 +132,20 @@ def enqueue_confirmation():
     """Enqueue a confirmation for a specific user."""
     try:
         data = request.get_json()
-        if (
-            not data
-            or "username" not in data
-            or "id" not in data
-            or "jsonPayload" not in data
-        ):
+        if not data or "username" not in data or "jsonPayload" not in data:
             return (
-                jsonify(
-                    {"error": "Missing required fields: username, id, jsonPayload"}
-                ),
+                jsonify({"error": "Missing required fields: username, jsonPayload"}),
                 400,
             )
 
         username = data["username"]
-        confirmation_id = data["id"]
         json_payload = data["jsonPayload"]
 
         if not db.get_user(username):
             return jsonify({"error": f"User '{username}' does not exist"}), 404
 
-        if db.add_confirmation(confirmation_id, username, json_payload):
+        confirmation_id = db.add_confirmation(username, json_payload)
+        if confirmation_id:
             logger.info(
                 "enqueued confirmation id %s for user %s", confirmation_id, username
             )
@@ -167,7 +160,7 @@ def enqueue_confirmation():
             )
 
         else:
-            return jsonify({"error": "Confirmation with this ID already exists"}), 409
+            return jsonify({"error": "Failed to enqueue confirmation"}), 500
 
     except Exception as e:
         logger.error("Error enqueueing confirmation: %s", e)
