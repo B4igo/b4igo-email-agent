@@ -18,6 +18,8 @@ from flask_jwt_extended import (
     unset_jwt_cookies,
 )
 
+from b4igo_email_agent.database import db
+
 # LOGGING
 # configure logging (does not show in production
 # gunicorn server due to threded web-workers).
@@ -41,11 +43,13 @@ executor = ThreadPoolExecutor(max_workers=4)
 
 
 # AUTHENTICATION INIT
-# example users for the moment (will be sqlite db)
-users = {
-    "user": {"password": "password", "role": "user"},
-    "admin": {"password": "adminpass", "role": "admin"},
-}
+# Initialize database with example users
+db.add_user("user", "password", "user")
+db.add_user("admin", "adminpass", "admin")
+db.add_confirmation(3, "user", '{"example_key2" : "example_value2"}')
+db.add_confirmation(4, "user", '{"example_key3" : "example_value3"}')
+db.add_confirmation(0, "admin", '{"example_key" : "example_value"}')
+db.add_confirmation(1, "admin", '{"example_key1" : "example_value1"}')
 
 # set the secret key for JWT signing
 app.config["JWT_SECRET_KEY"] = str(uuid4())  # TODO: save as file on server
@@ -76,7 +80,7 @@ def login():
     if not username or not password:
         return jsonify({"error": "Missing username or password"}), 400
 
-    user = users.get(username)
+    user = db.get_user(username)
     if not user or user["password"] != password:
         return jsonify({"error": "Invalid username or password"}), 401
 
@@ -122,29 +126,77 @@ def test_credentials():
     return jsonify(logged_in_as=current_user), 200
 
 
-# CONFIRMATIONS
+# CONFIRMATIONS MANAGEMENT (no auth - for testing integration)
+@app.route("/api/confirmations/enqueue", methods=["POST"])
+def enqueue_confirmation():
+    """Enqueue a confirmation for a specific user."""
+    try:
+        data = request.get_json()
+        if (
+            not data
+            or "username" not in data
+            or "id" not in data
+            or "jsonPayload" not in data
+        ):
+            return (
+                jsonify(
+                    {"error": "Missing required fields: username, id, jsonPayload"}
+                ),
+                400,
+            )
+
+        username = data["username"]
+        confirmation_id = data["id"]
+        json_payload = data["jsonPayload"]
+
+        if not db.get_user(username):
+            return jsonify({"error": f"User '{username}' does not exist"}), 404
+
+        if db.add_confirmation(confirmation_id, username, json_payload):
+            logger.info(
+                "enqueued confirmation id %s for user %s", confirmation_id, username
+            )
+            return (
+                jsonify(
+                    {
+                        "message": "Confirmation enqueued successfully",
+                        "id": confirmation_id,
+                    }
+                ),
+                201,
+            )
+
+        else:
+            return jsonify({"error": "Confirmation with this ID already exists"}), 409
+
+    except Exception as e:
+        logger.error("Error enqueueing confirmation: %s", e)
+        return jsonify({"error": "Failed to enqueue confirmation"}), 500
 
 
+@app.route("/api/confirmations/user/<username>", methods=["GET"])
+def get_user_confirmations(username):
+    """Get all confirmations for a specific user."""
+    confirmations_list = db.get_confirmations(username)
+
+    if confirmations_list:
+        return jsonify({"username": username, "confirmations": confirmations_list}), 200
+
+    else:
+        return jsonify({"msg": f"No confirmations found for {username}"}), 404
+
+
+# CONFIRMATIONS (auth required)
 @app.route("/api/confirmations", methods=["GET"])
 @jwt_required()
 def confirmations():
     """Get all pending confirmations for current user."""
     current_user = get_jwt_identity()
 
-    # TODO: replace dict with sqlite in-memory
-    confirmations = {
-        "user": [
-            {"id": 3, "jsonPayload": '{"example_key2" : "example_value2"}'},
-            {"id": 4, "jsonPayload": '{"example_key3" : "example_value3"}'},
-        ],
-        "admin": [
-            {"id": 0, "jsonPayload": '{"example_key" : "example_value"}'},
-            {"id": 1, "jsonPayload": '{"example_key1" : "example_value1"}'},
-        ],
-    }
+    confirmations_list = db.get_confirmations(current_user)
 
-    if current_user in confirmations.keys():
-        return jsonify(confirmations[current_user]), 200
+    if confirmations_list:
+        return jsonify(confirmations_list), 200
 
     else:
         return jsonify({"msg": f"No confirmations found for {current_user}"})
@@ -160,7 +212,10 @@ def reject_confirmation():
             raise Exception("missing id parameter")
 
         id = data["id"]
-        logger.info("removing id %s", id)  # TODO: stubbed DB call
+        if db.remove_confirmation(id):
+            logger.info("removed confirmation id %s", id)
+        else:
+            logger.info("confirmation id %s not found", id)
 
         return "", 200
 
@@ -180,11 +235,16 @@ def accept_confirmation():
 
         id = data["id"]
 
+        if not db.confirmation_exists(id):
+            return jsonify({"error": "Confirmation not found"}), 404
+
         if "jsonPayload" in data:
             logger.info("using provided jsonPayload")
+            # TODO: implement update confirmation payload logic
 
         # here we would grab either the paylod from the db or use
         # the jsonPayload edit provided.
+        db.remove_confirmation(id)
         logger.info(
             "adding confirmation #%s to valut", id
         )  # TODO: stubbed B4iGo API call
