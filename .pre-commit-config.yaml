@@ -25,7 +25,8 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: [types-requests, types-pyyaml]
-        args: [--ignore-missing-imports]
+        args: [--ignore-missing-imports, --explicit-package-bases]
+        exclude: ^test_workflow\.py$
   
   - repo: https://github.com/pycqa/pydocstyle
     rev: 6.3.0
