@@ -20,9 +20,9 @@ if str(_repo_root) not in sys.path:
 
 def main() -> None:
     """Run the agent workflow demo on sample emails."""
-    from b4igo_email_agent.ai_pipeline.agent.workflow import process_email_to_vault
     from b4igo_email_agent.ai_pipeline.domain_classifier import DomainClassifier
     from b4igo_email_agent.ai_pipeline.email.email_parser import parse_email
+    from b4igo_email_agent.ai_pipeline.workflow import process_email_to_vault
 
     print("=" * 60)
     print("Agent workflow demo: email -> classify -> vault")
@@ -69,14 +69,9 @@ def main() -> None:
     for i, data in enumerate(samples, 1):
         print(f"--- Email {i}: {data['subject'][:50]}...")
         email = parse_email(data)
-        classification, vault_result = process_email_to_vault(email, classifier)
-        print(f"  Category:   {classification['category']}")
+        classification = process_email_to_vault(email, classifier)
+        print(f"  Category:   {classification}")
         print(f"  Confidence: {classification['confidence']:.3f}")
-        print(f"  Vault type: {vault_result.vault_type}")
-        ok = len(vault_result.errors) == 0
-        print(f"  Vault OK:   {ok} (errors: {vault_result.errors})")
-        nkeys = len(vault_result.data)
-        print(f"  Payload:    {nkeys} keys (from_address, to_address, ...)")
         print()
 
     print("=" * 60)
