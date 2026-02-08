@@ -20,9 +20,23 @@ class SchemaPrompter:
     }
 
     def get_domain_prompt(self, domain: Domain) -> str:
-        """Return a prompt containing JSON schemas for the given
-        domain."""
+        """Get json string containing all schemas for domain.
 
+        Parameters
+        ----------
+        domain : Domain
+                The domain to get schemas for
+
+        Returns
+        -------
+        str
+                A string of the json representations of each pydantic schema
+
+        Raises
+        ------
+        ValueError
+                If the domain is not supported
+        """
         module = self._DOMAIN_MODULES.get(domain)
         if module is None:
             raise ValueError(f"Unsupported domain: {domain}")
