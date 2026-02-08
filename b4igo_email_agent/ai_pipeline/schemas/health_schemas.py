@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 # Vault-type schemas kept for future use (e.g. per-vault validation of data).
-class ExtractedAppointment(BaseModel):
+class Appointment(BaseModel):
     """Extracted appointment information for agent output."""
 
     date: str  # ISO format string
@@ -18,8 +18,8 @@ class ExtractedAppointment(BaseModel):
     notes: Optional[str] = None
 
 
-class ExtractedDoctor(BaseModel):
-    """Doctor record aligned with website 'My Doctors Records' table."""
+class Doctor(BaseModel):
+    """'My Doctors Records' table."""
 
     doctor_name: str = Field(description="Full name of the doctor")
     type: Optional[str] = Field(default=None, description="Specialty or category")
@@ -34,8 +34,8 @@ class ExtractedDoctor(BaseModel):
     )
 
 
-class ExtractedInsurance(BaseModel):
-    """Insurance record aligned with website 'My Health Insurance Records' table."""
+class Insurance(BaseModel):
+    """My Health Insurance Records table."""
 
     type_of_health_insurance: str = Field(description="Plan type (e.g. PPO, HMO, EPO)")
     coverage_type: str = Field(
@@ -49,9 +49,8 @@ class ExtractedInsurance(BaseModel):
     )
 
 
-class ExtractedMedication(BaseModel):
-    """Medication/treatment record aligned with website treatments and
-    medications table."""
+class Medication(BaseModel):
+    """Treatments and Medications table."""
 
     name_of_medicine: str = Field(description="Name of the medication")
     treatment_name: Optional[str] = Field(
@@ -71,8 +70,8 @@ class ExtractedMedication(BaseModel):
     )
 
 
-class ExtractedMedicalHistoryEntry(BaseModel):
-    """Medical history or emergency alert record aligned with website tables."""
+class MedicalHistory(BaseModel):
+    """Medical history or emergency alert record."""
 
     date: str = Field(description="Date of the record or event")
     disease: str = Field(description="Condition or disease")
@@ -82,8 +81,8 @@ class ExtractedMedicalHistoryEntry(BaseModel):
     )
 
 
-class ExtractedBill(BaseModel):
-    """Extracted bill information for agent output."""
+class Bill(BaseModel):
+    """Extracted bill information."""
 
     amount: float
     currency: str = "USD"
