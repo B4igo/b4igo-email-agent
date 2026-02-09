@@ -8,49 +8,51 @@ from typing import Optional
 class Database:
     """SQLite database manager for users and confirmations."""
 
-    def __init__(self, db_path: str = ":memory:"):
+    def __init__(self, db_path: str = "email_agent.db"):
         """Initialize the database and create tables.
 
         Args:
-            db_path: Path to SQLite database file. Use ':memory:' for in-memory DB.
+            db_path: Path to SQLite database file.
         """
         self.db_path = db_path
-        self._conn = sqlite3.connect(self.db_path)
-        self._conn.row_factory = sqlite3.Row
         self._initialize_tables()
 
     @contextmanager
     def _get_connection(self):
         """Context manager for database connections."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
         try:
-            yield self._conn
-            self._conn.commit()
+            yield conn
+            conn.commit()
         except Exception:
-            self._conn.rollback()
+            conn.rollback()
             raise
+        finally:
+            conn.close()
 
     def _initialize_tables(self):
         """Create users and confirmations tables."""
-        self._conn.execute(
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    password TEXT NOT NULL,
+                    role TEXT NOT NULL
+                )
             """
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL
             )
-        """
-        )
-        self._conn.execute(
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS confirmations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    jsonPayload TEXT NOT NULL,
+                    FOREIGN KEY (username) REFERENCES users(username)
+                )
             """
-            CREATE TABLE IF NOT EXISTS confirmations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
-                jsonPayload TEXT NOT NULL,
-                FOREIGN KEY (username) REFERENCES users(username)
             )
-        """
-        )
-        self._conn.commit()
 
     def add_user(self, username: str, password: str, role: str) -> bool:
         """Add a new user to the database.
@@ -159,5 +161,5 @@ class Database:
             return cursor.fetchone() is not None
 
 
-# Global database instance (using shared in-memory database for testing)
-db = Database("file::memory:?mode=memory&cache=shared")
+# Global database instance
+db = Database()
