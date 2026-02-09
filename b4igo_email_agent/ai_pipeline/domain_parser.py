@@ -2,9 +2,10 @@
 
 import json
 from pathlib import Path
+from typing import Optional
 
 from ollama import ChatResponse, chat
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from b4igo_email_agent.ai_pipeline.domain_classifier import Domain
 from b4igo_email_agent.ai_pipeline.schemas import schemas
@@ -31,8 +32,10 @@ class DomainParser:
             }
         )
 
-    def _validate_response(self, response_content: str) -> list[BaseModel]:
+    def _validate_response(self, response_content: Optional[str]) -> list[BaseModel]:
         """Validates the response content and converts it to BaseModels."""
+        if not response_content:
+            raise ValueError("No response content to parse.")
         json_object = None
         try:
             json_object = json.loads(response_content)
@@ -46,16 +49,21 @@ class DomainParser:
         for result in results:
             schema_name = list(result.keys())[0]
 
+        # TODO - Check for empty strings or null values
         parsed_results: list[BaseModel] = []
-        try:
-            for result in results:
+        for result in results:
+            try:
                 schema_name = list(result.keys())[0]
                 schema_fields = result[schema_name]
                 schema_class = getattr(schemas, schema_name)
                 parsed_result = schema_class(**schema_fields)
                 parsed_results.append(parsed_result)
-        except Exception as e:
-            raise ValueError(f"Error converting JSON to BaseModel instances: {e}")
+            except ValidationError:
+                # If the response is not valid, then simply pass.
+                # An ivalid schema instance should be considered the
+                # same as not being present in the email, so we can just
+                # ignore it.
+                continue
 
         return parsed_results
 
@@ -75,11 +83,11 @@ class DomainParser:
         text_email = email.to_text()
         self.messages.append({"role": "user", "content": text_email})
 
+        # TODO: Make model configurable
         response: ChatResponse = chat(
-            model="qwen3:4b", messages=self.messages, think=False, format="json"
+            model="qwen3:8b", messages=self.messages, think=False, format="json"
         )
-        response_content = response["choices"][0]["message"]["content"]
-
+        response_content = response.message.content
         entries = self._validate_response(response_content)
 
         return entries

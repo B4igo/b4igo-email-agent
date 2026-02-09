@@ -1,0 +1,184 @@
+{
+  "health_emails": [
+    {
+      "name": "single_appointment",
+      "description": "Email with complete Appointment information",
+      "expected_schemas": ["Appointment"],
+      "email": {
+        "from_address": {
+          "address": "appointments@cityhospital.com",
+          "name": "City Hospital Scheduling"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "John Doe"
+          }
+        ],
+        "subject": "Appointment Confirmation - Dr. Sarah Johnson",
+        "body": "Dear John Doe,\n\nThis email confirms your upcoming appointment:\n\nDate: 2026-03-15\nTime: 10:30 AM\nProvider: Dr. Sarah Johnson (Cardiologist)\nLocation: City Hospital, 123 Medical Plaza, Suite 400\nAppointment Type: Follow-up Consultation\nDuration: 30 minutes\n\nPlease arrive 15 minutes early to complete any necessary paperwork.\n\nBest regards,\nCity Hospital",
+        "received_at": "2026-02-09T10:30:00"
+      }
+    },
+    {
+      "name": "single_doctor",
+      "description": "Email with complete Doctor information",
+      "expected_schemas": ["Doctor"],
+      "email": {
+        "from_address": {
+          "address": "info@specialtycare.com",
+          "name": "Specialty Care Center"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Jane Smith"
+          }
+        ],
+        "subject": "Your New Physician - Dr. Michael Chen",
+        "body": "Welcome to our practice!\n\nDoctor Name: Dr. Michael Chen\nSpecialty: Orthopedic Surgery\nLocation: Specialty Care Center, 789 Healthcare Blvd, Building B\nLast Visit Date: 2026-02-07\n\nDr. Chen specializes in joint replacement and sports medicine.\n\nTo schedule, call (555) 987-6543.",
+        "received_at": "2026-02-09T09:20:00"
+      }
+    },
+    {
+      "name": "appointment_and_doctor",
+      "description": "Email with both Appointment and Doctor information",
+      "expected_schemas": ["Appointment", "Doctor"],
+      "email": {
+        "from_address": {
+          "address": "scheduling@heartclinic.com",
+          "name": "Heart Clinic"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Bob Wilson"
+          }
+        ],
+        "subject": "Upcoming Cardiology Appointment",
+        "body": "Dear Bob Wilson,\n\nYou have an appointment scheduled:\n\nDate: 2026-03-20\nTime: 2:00 PM\nProvider: Dr. Emily Roberts\nLocation: Heart Clinic, 456 Medical Center Dr\nType: Initial Consultation\n\nAbout Your Doctor:\nDr. Emily Roberts is a board-certified cardiologist with 10 years of experience.\nSpecialty: Cardiology\nPractice Location: Heart Clinic, 456 Medical Center Dr\n\nPlease bring your insurance card and ID.\n\nHeart Clinic",
+        "received_at": "2026-02-09T11:00:00"
+      }
+    },
+    {
+      "name": "medication_and_medical_history",
+      "description": "Email with Medication and MedicalHistory information",
+      "expected_schemas": ["Medication", "MedicalHistory"],
+      "email": {
+        "from_address": {
+          "address": "results@citylab.com",
+          "name": "City Lab Services"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Alice Johnson"
+          }
+        ],
+        "subject": "Lab Results and Treatment Plan",
+        "body": "Dear Alice Johnson,\n\nYour recent lab work from February 5, 2026 has been reviewed.\n\nDiagnosis: Type 2 Diabetes\nDate of Diagnosis: 2026-02-05\nDescription: Your blood glucose levels indicate Type 2 Diabetes. HbA1c: 7.2%\n\nPrescribed Medication:\nMedicine Name: Metformin 500mg\nTreatment: Diabetes Management\nPurpose: To control blood sugar levels\nDuration: Ongoing (refill every 90 days)\nStart Date: 2026-02-10\n\nPlease schedule a follow-up in 3 months.\n\nCity Lab Services",
+        "received_at": "2026-02-09T14:30:00"
+      }
+    },
+    {
+      "name": "complete_bill",
+      "description": "Email with complete Bill information",
+      "expected_schemas": ["Bill"],
+      "email": {
+        "from_address": {
+          "address": "billing@healthsystem.com",
+          "name": "Health System Billing"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Chris Martinez"
+          }
+        ],
+        "subject": "Invoice #INV-2026-12345",
+        "body": "Dear Chris Martinez,\n\nYou have a new invoice:\n\nInvoice Number: INV-2026-12345\nAmount: $350.00\nCurrency: USD\nDue Date: 2026-03-15\nVendor: Health System Medical Group\nAccount Number: ACC-789456\n\nThis is for your office visit on January 20, 2026.\n\nPayment options available at www.healthsystem.com/pay\n\nHealth System Billing",
+        "received_at": "2026-02-09T15:00:00"
+      }
+    },
+    {
+      "name": "complete_insurance",
+      "description": "Email with complete Insurance information",
+      "expected_schemas": ["Insurance"],
+      "email": {
+        "from_address": {
+          "address": "service@healthinsure.com",
+          "name": "Health Insurance Co"
+        },
+        "to_address": [
+          {
+            "address": "member@email.com",
+            "name": "David Lee"
+          }
+        ],
+        "subject": "Your 2026 Health Insurance Summary",
+        "body": "Dear David Lee,\n\nYour health insurance details:\n\nPlan Type: PPO (Preferred Provider Organization)\nCoverage Type: Family Plan\nPolicy Effective Date: 2026-01-01\nLast Updated: 2026-01-01\n\nYour plan includes medical, dental, and vision coverage.\n\nFor questions, call 1-800-HEALTH.\n\nHealth Insurance Co",
+        "received_at": "2026-02-09T08:00:00"
+      }
+    },
+    {
+      "name": "incomplete_medication",
+      "description": "Email with incomplete Medication info (missing name_of_medicine)",
+      "expected_schemas": [],
+      "email": {
+        "from_address": {
+          "address": "pharmacy@quickrx.com",
+          "name": "QuickRx Pharmacy"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Eva Brown"
+          }
+        ],
+        "subject": "Prescription Information",
+        "body": "Dear Eva Brown,\n\nYour prescription is being processed.\n\nTreatment: Hypertension Management\nPurpose: To lower high blood pressure\nDuration: 90-day supply\nPrescribed Date: 2026-02-08\n\nWe will notify you when it's ready for pickup.\n\nQuickRx Pharmacy",
+        "received_at": "2026-02-09T16:00:00"
+      }
+    },
+    {
+      "name": "incomplete_appointment",
+      "description": "Email with incomplete Appointment info (missing provider)",
+      "expected_schemas": [],
+      "email": {
+        "from_address": {
+          "address": "reminders@clinic.com",
+          "name": "Clinic Reminders"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Frank Wilson"
+          }
+        ],
+        "subject": "Appointment Reminder",
+        "body": "Dear Frank Wilson,\n\nReminder: You have an appointment coming up.\n\nDate: 2026-03-10\nTime: 3:00 PM\nLocation: Downtown Clinic, 100 Main Street\n\nPlease call if you need to reschedule.\n\nDowntown Clinic",
+        "received_at": "2026-02-09T12:00:00"
+      }
+    },
+    {
+      "name": "multiple_medications",
+      "description": "Email with multiple Medication entries",
+      "expected_schemas": ["Medication", "Medication"],
+      "email": {
+        "from_address": {
+          "address": "doctor@medicalgroup.com",
+          "name": "Medical Group"
+        },
+        "to_address": [
+          {
+            "address": "patient@email.com",
+            "name": "Grace Taylor"
+          }
+        ],
+        "subject": "Your New Medication Regimen",
+        "body": "Dear Grace Taylor,\n\nBased on your recent visit, you have been prescribed the following medications:\n\n1. First Medication:\nName: Lisinopril 10mg\nTreatment: Hypertension Management\nPurpose: Blood pressure control\nDuration: Ongoing\nStart Date: 2026-02-10\n\n2. Second Medication:\nName: Atorvastatin 20mg\nTreatment: Cholesterol Management\nPurpose: Lower LDL cholesterol\nDuration: Ongoing\nStart Date: 2026-02-10\n\nPlease take both medications as directed.\n\nMedical Group",
+        "received_at": "2026-02-09T10:00:00"
+      }
+    }
+  ]
+}
