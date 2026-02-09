@@ -3,5 +3,6 @@ flask-jwt-extended
 pydantic>=2.0
 numpy
 ollama
+requests
 sentence-transformers
 scikit-learn
