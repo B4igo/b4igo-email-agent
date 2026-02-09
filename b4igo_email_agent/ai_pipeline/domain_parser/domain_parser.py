@@ -1,62 +1,51 @@
 """Defines DomainParser for AI pipeline."""
-from importlib.resources import files
-import json
 
-from ollama import chat
-from ollama import ChatResponse
+import json
+from pathlib import Path
+
+from ollama import ChatResponse, chat
 from pydantic import BaseModel
 
 from b4igo_email_agent.ai_pipeline.domain_classifier import Domain
-from b4igo_email_agent.ai_pipeline.email.models import EmailInput
-from b4igo_email_agent.ai_pipeline.agent import schemas
-from b4igo_email_agent.ai_pipeline.domain_parser import prompts
+from b4igo_email_agent.ai_pipeline.schemas import schemas
+from b4igo_email_agent.ai_pipeline.schemas.schema_prompter import SchemaPrompter
+from b4igo_email_agent.email.models import EmailInput
 
 
-class DomainParser():
-    """Parses email for all information within a given domain.
-    """
+class DomainParser:
+    """Parses email for all information within a given domain."""
 
     def __init__(self) -> None:
         """Initializes DomainParser."""
-
         self.messages: list[dict[str, str]] = []
+        self.schema_prompter: SchemaPrompter = SchemaPrompter()
 
-        # Load base system prompt
-        system_prompt = self._load_prompt('system')
-        self.messages.append({'role': 'system', 'content': system_prompt})
-
-    def _get_domain_prompt(self, domain: Domain) -> str:
-        """Loads the relevant schemas.py file as a prompt for the given
-        domain."""
-        domain_prompt = files(schemas).joinpath(f'{domain}.py').read_text()
-        
-        # Remove first 5 lines (imports)
-        domain_prompt_lines = domain_prompt.splitlines()
-        domain_prompt = '\n'.join(domain_prompt_lines[5:])
-
-        return domain_prompt
-    
-    def _load_prompt(self, name: str, extension: str = "txt") -> str:
-        """Load prompt from the current package."""
-        return files(prompts).joinpath(f'{name}.{extension}').read_text()
+        # Load system prompt from file and add to messages
+        system_prompt = (Path(__file__).parent / "system_prompt.txt").read_text(
+            encoding="utf-8"
+        )
+        self.messages.append(
+            {
+                "role": "system",
+                "content": system_prompt,
+            }
+        )
 
     def _validate_response(self, response_content: str) -> list[BaseModel]:
-        """Validates the response content and converts it to a list of
-        BaseModel instances."""
-
+        """Validates the response content and converts it to BaseModels."""
         json_object = None
         try:
             json_object = json.loads(response_content)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON response: {e}")
-        if 'results' not in json_object:
+        if "results" not in json_object:
             raise ValueError("JSON response does not contain 'results' key.")
-        results = json_object['results']
+        results = json_object["results"]
         if not isinstance(results, list):
             raise ValueError("'results' key must be a list.")
         for result in results:
             schema_name = list(result.keys())[0]
-            
+
         parsed_results: list[BaseModel] = []
         try:
             for result in results:
@@ -67,7 +56,7 @@ class DomainParser():
                 parsed_results.append(parsed_result)
         except Exception as e:
             raise ValueError(f"Error converting JSON to BaseModel instances: {e}")
-        
+
         return parsed_results
 
     def parse_email(self, email: EmailInput, domain: Domain) -> list[BaseModel]:
@@ -81,18 +70,15 @@ class DomainParser():
             list[BaseModel]: A list of parsed information as Schema
             instances.
         """
-
-        schemas_prompt = self._get_domain_prompt(domain)
-        self.messages.append({'role': 'assistant', 'content': schemas_prompt})
+        schemas_prompt = self.schema_prompter.get_domain_prompt(domain)
+        self.messages.append({"role": "user", "content": schemas_prompt})
         text_email = email.to_text()
-        self.messages.append({'role': 'user', 'content': text_email})
+        self.messages.append({"role": "user", "content": text_email})
 
         response: ChatResponse = chat(
-            model='qwen3:4b',
-            messages=self.messages,
-            think=False,
-            format='json')
-        response_content = response['choices'][0]['message']['content']
+            model="qwen3:4b", messages=self.messages, think=False, format="json"
+        )
+        response_content = response["choices"][0]["message"]["content"]
 
         entries = self._validate_response(response_content)
 

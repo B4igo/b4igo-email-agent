@@ -10,6 +10,8 @@ class TestSchemaPrompter(unittest.TestCase):
         prompter = SchemaPrompter()
         prompt = prompter.get_domain_prompt("health")
 
+        print(prompt)
+
         self.assertIsInstance(prompt, str)
         self.assertTrue(prompt)
 

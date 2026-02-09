@@ -9,14 +9,14 @@ from typing import Type
 from pydantic import BaseModel
 
 from ..domain_classifier import Domain
-from . import health_schemas
+from . import schemas
 
 
 class SchemaPrompter:
     """Builds prompts containing schema JSON for a given domain."""
 
     _DOMAIN_MODULES: dict[Domain, ModuleType] = {
-        "health": health_schemas,
+        "health": schemas,
     }
 
     def get_domain_prompt(self, domain: Domain) -> str:
@@ -57,6 +57,7 @@ class SchemaPrompter:
                 models.append(value)
         return sorted(models, key=lambda model: model.__name__)
 
+    # TODO - Cache prompts
     def _format_schema(self, model: Type[BaseModel]) -> str:
         schema = model.model_json_schema()
         return (
