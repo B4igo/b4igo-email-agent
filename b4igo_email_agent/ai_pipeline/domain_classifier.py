@@ -1,12 +1,13 @@
 """Defines DomainClassifier of AI Pipeline."""
 
-from email.message import EmailMessage
 from typing import Dict, Literal, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+
+from b4igo_email_agent.email.models import EmailInput
 
 # Email category type
 Domain = Literal["education", "health", "legal", "personal", "other"]
@@ -36,7 +37,7 @@ class DomainClassifier:
                 "student records, enrollment, tuition, learning platforms, "
                 "educational materials, professors, academic advisors"
             ),
-            "medical": (
+            "health": (
                 "Healthcare providers, doctors, physicians, hospitals, clinics, "
                 "medical appointments, prescriptions, medications, health insurance, "
                 "lab results, test results, medical records, patient portal, "
@@ -76,26 +77,11 @@ class DomainClassifier:
             [self._category_embeddings[category] for category in self._category_list]
         )
 
-    def _build_email_text(self, email: EmailMessage) -> str:
-        body = ""
-        if email.is_multipart():
-            body_part = email.get_body(preferencelist=("plain",))
-            if body_part is not None:
-                body = body_part.get_content()
-        else:
-            body = email.get_content()
-
-        return (
-            "From: "
-            f"{email.get('from', '')}\n"
-            f"Subject: {email.get('subject', '')}\n\n{body[:1000]}"
-        )
-
-    def classify(self, emails: list[EmailMessage]) -> list[EmailClassificationResult]:
+    def classify(self, emails: list[EmailInput]) -> list[EmailClassificationResult]:
         """Classify emails into predefined categories using batch processing.
 
         Args:
-            emails (list[EmailMessage]): List of emails with 'subject', 'from',
+            emails (list[EmailInput]): List of emails with subject, from_address,
                 and body content.
 
         Returns:
@@ -105,7 +91,7 @@ class DomainClassifier:
         if not emails:
             return []
 
-        email_texts = [self._build_email_text(email) for email in emails]
+        email_texts = [email.to_text() for email in emails]
         email_embeddings = np.array(
             self.model.encode(email_texts, convert_to_tensor=False)
         )
