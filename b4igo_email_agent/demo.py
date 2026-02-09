@@ -30,7 +30,6 @@ classification_result = domain_classifer.classify([email])[0]
 parsed_models = domain_parser.parse_email(email, classification_result["category"])
 print(parsed_models)
 
-exit()
 # API Call
 url = "http://localhost:5000/api/confirmations/enqueue"
 
