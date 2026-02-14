@@ -1,5 +1,6 @@
 """Email agent API for handling authentication and confirmation requests."""
 
+import json
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +20,8 @@ from flask_jwt_extended import (
 )
 
 from b4igo_email_agent.database import db
+from b4igo_email_agent.vault.client import VaultClient
+from b4igo_email_agent.vault.utils import parse_vault_record
 
 # LOGGING
 # configure logging (does not show in production
@@ -226,22 +229,49 @@ def accept_confirmation():
         if not data or "id" not in data:
             raise Exception("missing id parameter")
 
-        id = data["id"]
+        conf_id = data["id"]
+        current_user = get_jwt_identity()
 
-        if not db.confirmation_exists(id):
+        if not db.confirmation_exists(conf_id):
             return jsonify({"error": "Confirmation not found"}), 404
 
+        # Use edited payload if provided, else load from DB
         if "jsonPayload" in data:
             logger.info("using provided jsonPayload")
-            # TODO: implement update confirmation payload logic
+            raw = data["jsonPayload"]
+        else:
+            confirmations_list = db.get_confirmations(current_user)
+            conf = next((c for c in confirmations_list if c["id"] == conf_id), None)
+            if not conf:
+                return jsonify({"error": "Confirmation not found"}), 404
+            raw = conf["jsonPayload"]
 
-        # here we would grab either the paylod from the db or use
-        # the jsonPayload edit provided.
-        db.remove_confirmation(id)
-        logger.info(
-            "adding confirmation #%s to valut", id
-        )  # TODO: stubbed B4iGo API call
+        # Normalize to dict if string
+        if isinstance(raw, str):
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                db.remove_confirmation(conf_id)
+                return jsonify({"error": "Invalid jsonPayload"}), 400
+        else:
+            payload = raw if isinstance(raw, dict) else {}
 
+        record = parse_vault_record(payload)
+        if record:
+            vault = VaultClient()
+            vault_id = vault.create(current_user, record)
+            if vault_id is not None:
+                logger.info(
+                    "added confirmation #%s to vault as record id %s", conf_id, vault_id
+                )
+            else:
+                logger.warning("vault create failed for confirmation #%s", conf_id)
+        else:
+            logger.warning(
+                "could not parse vault record from confirmation #%s", conf_id
+            )
+
+        db.remove_confirmation(conf_id)
         return "", 200
 
     except Exception:
