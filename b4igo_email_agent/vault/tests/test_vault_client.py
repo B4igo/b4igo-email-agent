@@ -23,6 +23,7 @@ class TestParseVaultRecord(TestCase):
         payload = {"doctor_name": "Dr. Smith", "type": "Cardiologist"}
         record = parse_vault_record(payload)
         self.assertIsInstance(record, Doctor)
+        assert record is not None
         self.assertEqual(record.doctor_name, "Dr. Smith")
 
     def test_insurance_payload(self) -> None:
@@ -30,6 +31,7 @@ class TestParseVaultRecord(TestCase):
         payload = {"type_of_health_insurance": "PPO", "coverage_type": "Family"}
         record = parse_vault_record(payload)
         self.assertIsInstance(record, Insurance)
+        assert record is not None
         self.assertEqual(record.coverage_type, "Family")
 
     def test_medication_payload(self) -> None:
@@ -37,6 +39,7 @@ class TestParseVaultRecord(TestCase):
         payload = {"name_of_medicine": "Aspirin"}
         record = parse_vault_record(payload)
         self.assertIsInstance(record, Medication)
+        assert record is not None
         self.assertEqual(record.name_of_medicine, "Aspirin")
 
     def test_medical_history_payload(self) -> None:
@@ -44,6 +47,7 @@ class TestParseVaultRecord(TestCase):
         payload = {"date": "2024-01-01", "disease": "Flu"}
         record = parse_vault_record(payload)
         self.assertIsInstance(record, MedicalHistory)
+        assert record is not None
         self.assertEqual(record.disease, "Flu")
 
     def test_invalid_payload_returns_none(self) -> None:
@@ -78,15 +82,28 @@ class TestVaultClient(TestCase):
 
     def test_create_insurance_medication_medical_history(self) -> None:
         """create works for Insurance, Medication, MedicalHistory."""
-        self.assertIsNotNone(self.client.create("alice", Insurance(type_of_health_insurance="HMO", coverage_type="Individual")))
-        self.assertIsNotNone(self.client.create("alice", Medication(name_of_medicine="Ibuprofen")))
-        self.assertIsNotNone(self.client.create("alice", MedicalHistory(date="2024-01-01", disease="Cold")))
+        self.assertIsNotNone(
+            self.client.create(
+                "alice",
+                Insurance(type_of_health_insurance="HMO", coverage_type="Individual"),
+            )
+        )
+        self.assertIsNotNone(
+            self.client.create("alice", Medication(name_of_medicine="Ibuprofen"))
+        )
+        self.assertIsNotNone(
+            self.client.create(
+                "alice", MedicalHistory(date="2024-01-01", disease="Cold")
+            )
+        )
         self.assertEqual(len(self.client.read("alice")), 3)
 
     def test_read_filter_by_type(self) -> None:
         """read with record_type filters results."""
         self.client.create("alice", Doctor(doctor_name="Dr. X"))
-        self.client.create("alice", Insurance(type_of_health_insurance="PPO", coverage_type="Family"))
+        self.client.create(
+            "alice", Insurance(type_of_health_insurance="PPO", coverage_type="Family")
+        )
         doctors = self.client.read("alice", record_type="doctor")
         self.assertEqual(len(doctors), 1)
         self.assertEqual(doctors[0]["record_type"], "doctor")
@@ -94,6 +111,7 @@ class TestVaultClient(TestCase):
     def test_update(self) -> None:
         """update modifies existing record."""
         rid = self.client.create("alice", Doctor(doctor_name="Dr. Old"))
+        assert rid is not None
         self.assertTrue(self.client.update(rid, Doctor(doctor_name="Dr. New")))
         recs = self.client.read("alice", id=rid)
         self.assertEqual(recs[0]["payload"]["doctor_name"], "Dr. New")
@@ -101,5 +119,6 @@ class TestVaultClient(TestCase):
     def test_delete(self) -> None:
         """delete removes record."""
         rid = self.client.create("alice", Doctor(doctor_name="Dr. X"))
+        assert rid is not None
         self.assertTrue(self.client.delete(rid))
         self.assertEqual(self.client.read("alice"), [])

@@ -1,6 +1,5 @@
 """Unit tests for VaultStorage."""
 
-import json
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -41,7 +40,11 @@ class TestVaultStorage(TestCase):
     def test_get_records_by_username_and_type(self) -> None:
         """get_records filters by username and optional record_type."""
         self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
-        self.storage.add_record("alice", "insurance", {"type_of_health_insurance": "PPO", "coverage_type": "Family"})
+        self.storage.add_record(
+            "alice",
+            "insurance",
+            {"type_of_health_insurance": "PPO", "coverage_type": "Family"},
+        )
         self.storage.add_record("bob", "doctor", {"doctor_name": "Dr. B"})
         all_alice = self.storage.get_records("alice")
         self.assertEqual(len(all_alice), 2)
@@ -64,7 +67,10 @@ class TestVaultStorage(TestCase):
     def test_update_record(self) -> None:
         """update_record replaces payload and returns True."""
         rid = self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
-        ok = self.storage.update_record(rid, {"doctor_name": "Dr. Updated", "type": "GP"})
+        assert rid is not None
+        ok = self.storage.update_record(
+            rid, {"doctor_name": "Dr. Updated", "type": "GP"}
+        )
         self.assertTrue(ok)
         recs = self.storage.get_records("alice", id=rid)
         self.assertEqual(recs[0]["payload"]["doctor_name"], "Dr. Updated")
@@ -76,6 +82,7 @@ class TestVaultStorage(TestCase):
     def test_delete_record(self) -> None:
         """delete_record removes record and returns True."""
         rid = self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
+        assert rid is not None
         self.assertTrue(self.storage.delete_record(rid))
         self.assertEqual(self.storage.get_records("alice"), [])
 

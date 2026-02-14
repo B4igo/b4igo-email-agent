@@ -8,7 +8,7 @@ from b4igo_email_agent.ai_pipeline.schemas.schemas import (
     MedicalHistory,
     Medication,
 )
-from b4igo_email_agent.vault.storage import VAULT_RECORD_TYPES, VaultStorage
+from b4igo_email_agent.vault.storage import VaultStorage
 
 VaultRecord = Union[Doctor, Insurance, Medication, MedicalHistory]
 
@@ -21,7 +21,7 @@ _SCHEMA_TO_TYPE = {
 
 
 class VaultClient:
-    """Client for vault CRUD. Validates input via Pydantic schemas; uses VaultStorage."""
+    """Vault CRUD client. Validates via Pydantic schemas; uses VaultStorage."""
 
     def __init__(self, storage: Optional[VaultStorage] = None):
         """Initialize client with optional storage (default: new VaultStorage())."""
@@ -57,13 +57,18 @@ class VaultClient:
 
         Args:
             username: Owner to filter by.
-            record_type: Optional filter (doctor, insurance, medication, medical_history).
+            record_type: Optional filter (doctor, insurance, medication,
+                medical_history).
             id: Optional single record id.
 
         Returns:
             List of dicts with id, username, record_type, payload (parsed).
         """
-        return self._storage.get_records(username=username, record_type=record_type, id=id)
+        return self._storage.get_records(
+            username=username,
+            record_type=record_type,
+            id=id,
+        )
 
     def update(self, id: int, record: VaultRecord) -> bool:
         """Update a vault record by id.

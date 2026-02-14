@@ -1,4 +1,4 @@
-"""SQLite storage layer for vault records (doctors, insurance, medications, medical_history)."""
+"""SQLite storage for vault records (doctors, insurance, meds, medical_history)."""
 
 import json
 import os
@@ -19,7 +19,9 @@ class VaultStorage:
             db_path: Path to SQLite database. Defaults to B4IGO_VAULT_DB_PATH env
                 or email_agent.db in cwd for simplicity.
         """
-        self.db_path = db_path or os.environ.get("B4IGO_VAULT_DB_PATH", "email_agent.db")
+        self.db_path = db_path or os.environ.get(
+            "B4IGO_VAULT_DB_PATH", "email_agent.db"
+        )
         self._initialize_tables()
 
     @contextmanager
@@ -46,15 +48,19 @@ class VaultStorage:
                     username TEXT NOT NULL,
                     record_type TEXT NOT NULL,
                     payload TEXT NOT NULL,
-                    CHECK (record_type IN ('doctor', 'insurance', 'medication', 'medical_history'))
+                    CHECK (record_type IN (
+                        'doctor', 'insurance', 'medication', 'medical_history'
+                    ))
                 )
                 """
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_vault_username ON vault_records(username)"
+                "CREATE INDEX IF NOT EXISTS idx_vault_username "
+                "ON vault_records(username)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_vault_username_type ON vault_records(username, record_type)"
+                "CREATE INDEX IF NOT EXISTS idx_vault_username_type "
+                "ON vault_records(username, record_type)"
             )
 
     def add_record(
@@ -76,7 +82,8 @@ class VaultStorage:
             payload_str = json.dumps(payload)
             with self._get_connection() as conn:
                 cursor = conn.execute(
-                    "INSERT INTO vault_records (username, record_type, payload) VALUES (?, ?, ?)",
+                    "INSERT INTO vault_records "
+                    "(username, record_type, payload) VALUES (?, ?, ?)",
                     (username, record_type, payload_str),
                 )
                 return cursor.lastrowid
@@ -93,7 +100,8 @@ class VaultStorage:
 
         Args:
             username: Owner to filter by.
-            record_type: Optional filter (doctor, insurance, medication, medical_history).
+            record_type: Optional filter (doctor, insurance, medication,
+                medical_history).
             id: Optional single record id (still scoped by username if provided).
 
         Returns:
@@ -102,17 +110,20 @@ class VaultStorage:
         with self._get_connection() as conn:
             if id is not None:
                 cursor = conn.execute(
-                    "SELECT id, username, record_type, payload FROM vault_records WHERE id = ? AND username = ?",
+                    "SELECT id, username, record_type, payload FROM vault_records "
+                    "WHERE id = ? AND username = ?",
                     (id, username),
                 )
             elif record_type and record_type in VAULT_RECORD_TYPES:
                 cursor = conn.execute(
-                    "SELECT id, username, record_type, payload FROM vault_records WHERE username = ? AND record_type = ?",
+                    "SELECT id, username, record_type, payload FROM vault_records "
+                    "WHERE username = ? AND record_type = ?",
                     (username, record_type),
                 )
             else:
                 cursor = conn.execute(
-                    "SELECT id, username, record_type, payload FROM vault_records WHERE username = ?",
+                    "SELECT id, username, record_type, payload FROM vault_records "
+                    "WHERE username = ?",
                     (username,),
                 )
             rows = cursor.fetchall()
