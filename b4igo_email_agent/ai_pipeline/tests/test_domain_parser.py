@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
-from unittest import TestCase
+from unittest import TestCase, mock
 
 from b4igo_email_agent.ai_pipeline.domain_parser import DomainParser
 from b4igo_email_agent.ai_pipeline.schemas.schemas import (
@@ -15,7 +15,20 @@ from b4igo_email_agent.ai_pipeline.schemas.schemas import (
     MedicalHistory,
     Medication,
 )
-from b4igo_email_agent.email.models import EmailAddress, EmailInput
+from b4igo_email_agent.mail.models import EmailAddress, EmailInput
+
+# Mock Ollama response so tests run without a running Ollama or qwen3:8b model.
+_MOCK_CHAT_RESPONSE_JSON = {
+    "results": [
+        {"Appointment": {"date": "2024-01-01", "provider": "Dr. Smith"}},
+        {"Doctor": {"doctor_name": "Dr. Jane"}},
+        {"Medication": {"name_of_medicine": "Aspirin"}},
+        {"Medication": {"name_of_medicine": "Ibuprofen"}},
+        {"Insurance": {"type_of_health_insurance": "PPO", "coverage_type": "Family"}},
+        {"MedicalHistory": {"date": "2024-01-01", "disease": "Flu"}},
+        {"Bill": {"amount": 100.0, "due_date": "2024-02-01", "vendor": "Hospital"}},
+    ]
+}
 
 
 class TestDomainParser(TestCase):
@@ -35,6 +48,20 @@ class TestDomainParser(TestCase):
             data = json.load(f)
 
         cls.test_cases = data["health_emails"]
+
+    def setUp(self) -> None:
+        """Patch ollama.chat so tests do not require Ollama or qwen3:8b."""
+        self._chat_patcher = mock.patch(
+            "b4igo_email_agent.ai_pipeline.domain_parser.chat"
+        )
+        mock_chat = self._chat_patcher.start()
+        mock_response = mock.MagicMock()
+        mock_response.message.content = json.dumps(_MOCK_CHAT_RESPONSE_JSON)
+        mock_chat.return_value = mock_response
+
+    def tearDown(self) -> None:
+        """Stop patching ollama.chat."""
+        self._chat_patcher.stop()
 
     def _load_email(self, email_data: Dict[str, Any]) -> EmailInput:
         """Convert JSON email data to EmailInput instance."""

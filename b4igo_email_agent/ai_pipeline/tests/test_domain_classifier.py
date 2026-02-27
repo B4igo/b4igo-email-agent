@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest import TestCase
 
 from b4igo_email_agent.ai_pipeline.domain_classifier import DomainClassifier
-from b4igo_email_agent.email.models import EmailAddress, EmailInput
+from b4igo_email_agent.mail.models import EmailAddress, EmailInput
 
 
 def _build_email(sender: str, subject: str, body: str) -> EmailInput:

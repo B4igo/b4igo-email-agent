@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from b4igo_email_agent.email.models import EmailInput
+from b4igo_email_agent.mail.models import EmailInput
 
 # Email category type
 Domain = Literal["education", "health", "legal", "personal", "other"]
