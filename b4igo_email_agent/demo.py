@@ -6,7 +6,7 @@ import requests
 
 from b4igo_email_agent.ai_pipeline.domain_classifier import DomainClassifier
 from b4igo_email_agent.ai_pipeline.domain_parser import DomainParser
-from b4igo_email_agent.email.models import EmailAddress, EmailInput
+from b4igo_email_agent.mail.models import EmailAddress, EmailInput
 
 email = EmailInput(
     from_address=EmailAddress(
