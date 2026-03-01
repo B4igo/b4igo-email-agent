@@ -3,6 +3,7 @@
 
 ## Setup
 
+### Backend
 Install the requirements (it's recommended to create a pyenv or conda environment first).
  ```bash
    pip install -r requirements.txt
@@ -11,6 +12,17 @@ Install the git hooks:
    ```bash
    pre-commit install
    ```
+### Frontend
+Open the terminal in the b4igo_email_agent_frontend folder and run npm install
+to install the frontend packages (assuming that npm is already installed)
+```bash
+   npm i
+```
+
+Then use npm run dev to run the frontend:
+```bash
+   npm run dev
+```
 
 ## Using commit hooks
 
