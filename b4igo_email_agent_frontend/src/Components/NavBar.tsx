@@ -8,7 +8,7 @@ export default function NavBar({ children }: { children: React.ReactNode }) {
             </Button>
             <Stack direction="row">
                 <Button href="/logout" variant="outlined" sx={{ margin: 1 }}>Logout</Button>
-                <Button href="/providers" variant="outlined" sx={{ margin: 1 }}>Manage Email Providers</Button>
+                <Button href="/email-connectors" variant="outlined" sx={{ margin: 1 }}>Manage Email Providers</Button>
             </Stack>
         </Card>
         {children}

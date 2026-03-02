@@ -53,6 +53,22 @@ class Database:
                 )
             """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS email_connectors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    connector_type TEXT NOT NULL,
+                    connector_name TEXT NOT NULL,
+                    token_json TEXT NOT NULL,
+                    connector_email TEXT NOT NULL,
+                    last_read TEXT,
+                    last_error_msg TEXT,
+                    FOREIGN KEY (username) REFERENCES users(username),
+                    UNIQUE(username, connector_email)
+                )
+            """
+            )
 
     def add_user(self, username: str, password: str, role: str) -> bool:
         """Add a new user to the database.
@@ -160,6 +176,110 @@ class Database:
             )
             return cursor.fetchone() is not None
 
+    def add_email_connector(
+            self,
+            username: str,
+            connector_type: str,
+            connector_name: str,
+            token_json: str,
+            connector_email: str,
+            last_read: Optional[str] = None,
+            last_error_msg: Optional[str] = None,
+    ) -> Optional[int]:
+        """Add a new email connector for a user."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.execute(
+                    """INSERT INTO email_connectors
+                       (username, connector_type, connector_name, token_json, connector_email, last_read,
+                        last_error_msg)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        username,
+                        connector_type,
+                        connector_name,
+                        token_json,
+                        connector_email,
+                        last_read,
+                        last_error_msg,
+                    ),
+                )
+                return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+    def get_email_connectors(self, username: str) -> list[dict]:
+        """Get all email connectors for a user."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """SELECT id,
+                          connector_type,
+                          connector_name,
+                          token_json,
+                          connector_email,
+                          last_read,
+                          last_error_msg
+                   FROM email_connectors
+                   WHERE username = ?""",
+                (username,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_email_connector(self, connector_id: int) -> Optional[dict]:
+        """Get a specific email connector by ID."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """SELECT id,
+                          username,
+                          connector_type,
+                          connector_name,
+                          token_json,
+                          connector_email,
+                          last_read,
+                          last_error_msg
+                   FROM email_connectors
+                   WHERE id = ?""",
+                (connector_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
+
+    def remove_email_connector(self, connector_id: int, username: str) -> bool:
+        """Remove an email connector by ID for a specific user."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM email_connectors WHERE id = ? AND username = ?",
+                (connector_id, username),
+            )
+            return cursor.rowcount > 0
+
+    def update_connector_last_read(
+            self, connector_id: int, last_read: str, last_error_msg: Optional[str] = None
+    ) -> bool:
+        """Update the last read timestamp and error message for a connector."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """UPDATE email_connectors
+                   SET last_read      = ?,
+                       last_error_msg = ?
+                   WHERE id = ?""",
+                (last_read, last_error_msg, connector_id),
+            )
+            return cursor.rowcount > 0
+
+    def email_already_connected(self, username: str, connector_email: str) -> bool:
+        """Check if an email address is already connected to a user's account."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """SELECT 1
+                   FROM email_connectors
+                   WHERE username = ?
+                     AND connector_email = ?""",
+                (username, connector_email),
+            )
+            return cursor.fetchone() is not None
 
 # Global database instance
 db = Database()

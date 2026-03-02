@@ -1,8 +1,13 @@
 pre-commit
 flask-jwt-extended
+flask-cors
 pydantic>=2.0
 numpy
 ollama
 requests
 sentence-transformers
 scikit-learn
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client

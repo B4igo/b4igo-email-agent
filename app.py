@@ -22,6 +22,15 @@ from flask_jwt_extended import (
 from b4igo_email_agent.database import db
 from b4igo_email_agent.vault.client import VaultClient
 from b4igo_email_agent.vault.utils import parse_vault_record
+from b4igo_email_agent.email_connectors.gmail_connector import (
+    get_authorization_url,
+    handle_oauth_callback,
+    get_user_email_from_token,
+)
+from b4igo_email_agent.email_connectors.connector_types import ConnectorType
+
+# Store for PKCE code verifiers keyed by OAuth state
+_oauth_code_verifiers: dict[str, str] = {}
 
 # LOGGING
 # configure logging (does not show in production
@@ -276,6 +285,137 @@ def accept_confirmation():
 
     except Exception:
         return jsonify({"error": "Missing 'id' parameter"}), 400
+
+@app.route("/api/email-connectors", methods=["GET"])
+@jwt_required()
+def get_email_connectors():
+    """Get all email connectors for the current user."""
+    current_user = get_jwt_identity()
+
+    connectors = db.get_email_connectors(current_user)
+
+    for connector in connectors:
+        connector["has_token"] = bool(connector.get("token_json"))
+        connector.pop("token_json", None)
+
+    return jsonify(connectors), 200
+
+
+@app.route("/api/email-connectors/<int:connector_id>", methods=["DELETE"])
+@jwt_required()
+def remove_email_connector(connector_id):
+    """Remove an email connector by ID."""
+    current_user = get_jwt_identity()
+
+    if db.remove_email_connector(connector_id, current_user):
+        logger.info("Removed email connector id %s for user %s", connector_id, current_user)
+        return jsonify({"message": "Email connector removed successfully"}), 200
+    else:
+        return jsonify({"error": "Connector not found or does not belong to user"}), 404
+
+
+@app.route("/api/email-connectors/types", methods=["GET"])
+@jwt_required()
+def get_connector_type_options():
+    """Get list of available connector types (e.g., ['gmail'])."""
+    connector_types = [t.value for t in ConnectorType]
+    return jsonify(connector_types), 200
+
+
+@app.route("/api/email-connectors/setup/<connector_type>", methods=["GET"])
+@jwt_required()
+def get_connector_setup(connector_type):
+    """Get the setup steps required for a specific connector type."""
+    try:
+        if connector_type == ConnectorType.GMAIL.value:
+            redirect_uri = "http://localhost:5173/email-connectors/gmail/callback"
+            client_secrets_file = "client_secrets.json"
+            
+            auth_url, state, code_verifier = get_authorization_url(client_secrets_file, redirect_uri)
+
+            _oauth_code_verifiers[state] = code_verifier
+
+            steps = [
+                {
+                    "type": "redirect",
+                    "title": "Authorize Gmail Access",
+                    "desc": "You will be redirected to Google to authorize access to your Gmail account",
+                    "callback": "/api/email-connectors/gmail/callback",
+                    "value": auth_url,
+                    "state": state
+                }
+            ]
+            
+            return jsonify(steps), 200
+        else:
+            return jsonify({"error": f"Unsupported connector type: {connector_type}"}), 400
+
+    except Exception as e:
+        logger.error("Error getting connector setup for %s: %s", connector_type, e)
+        return jsonify({"error": "Failed to get setup steps"}), 500
+
+
+@app.route("/api/email-connectors/gmail/callback", methods=["GET"])
+@jwt_required()
+def gmail_oauth_callback():
+    """Handle OAuth callback from Gmail authorization."""
+    try:
+        current_user = get_jwt_identity()
+        
+        auth_code = request.args.get("code")
+        state = request.args.get("state")
+        
+        if not auth_code:
+            return jsonify({"error": "Missing authorization code"}), 400
+        
+        connector_name = request.args.get("name", "Gmail Account")
+        
+        redirect_uri = "http://localhost:5173/email-connectors/gmail/callback"
+        client_secrets_file = "client_secrets.json"
+        
+        code_verifier = _oauth_code_verifiers.pop(state, None) if state else None
+
+        token_json = handle_oauth_callback(auth_code, client_secrets_file, redirect_uri, state, code_verifier)
+
+        connector_email = get_user_email_from_token(token_json)
+        
+        if db.email_already_connected(current_user, connector_email):
+            logger.warning(
+                "User %s attempted to connect already connected email %s",
+                current_user,
+                connector_email
+            )
+            return jsonify({
+                "error": f"Email {connector_email} is already connected to your account"
+            }), 409
+        
+        connector_id = db.add_email_connector(
+            username=current_user,
+            connector_type=ConnectorType.GMAIL.value,
+            connector_name=connector_name,
+            token_json=token_json,
+            connector_email=connector_email
+        )
+        
+        if connector_id:
+            logger.info(
+                "Successfully added Gmail connector id %s for user %s (email: %s)",
+                connector_id,
+                current_user,
+                connector_email
+            )
+            return jsonify({
+                "message": "Gmail account connected successfully",
+                "id": connector_id,
+                "connector_email": connector_email
+            }), 201
+        else:
+            logger.error("Failed to add Gmail connector for user %s", current_user)
+            return jsonify({"error": "Failed to save email connector"}), 500
+        
+    except Exception as e:
+        logger.error("Error in Gmail OAuth callback for user %s: %s", get_jwt_identity(), e)
+        return jsonify({"error": f"Failed to complete authorization: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
