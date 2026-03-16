@@ -60,7 +60,11 @@ class TestB4igoVaultApiStorage(TestCase):
         self.storage.add_record(
             "alice",
             "medication",
-            {"name_of_medicine": "Ibuprofen", "purpose": "Pain relief", "date": "2024-01-01"},
+            {
+                "name_of_medicine": "Ibuprofen",
+                "purpose": "Pain relief",
+                "date": "2024-01-01",
+            },
         )
         _, kwargs = self.session.request.call_args
         body = kwargs["json"]
@@ -157,7 +161,10 @@ class TestB4igoVaultApiStorage(TestCase):
     def test_update_record_medication_sends_recordId(self) -> None:
         self.session.request.return_value = _response(200, {"ok": True})
         self.storage.update_record(
-            5, {"name_of_medicine": "Tylenol"}, record_type="medication", username="alice"
+            5,
+            {"name_of_medicine": "Tylenol"},
+            record_type="medication",
+            username="alice",
         )
         _, kwargs = self.session.request.call_args
         body = kwargs["json"]

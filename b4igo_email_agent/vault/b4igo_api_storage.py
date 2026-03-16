@@ -1,11 +1,8 @@
 """HTTP-backed vault storage adapter for B4iGO API integration."""
 
 import os
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 from uuid import uuid4
-
-if TYPE_CHECKING:
-    import requests
 
 from b4igo_email_agent.vault.storage import VAULT_RECORD_TYPES
 
@@ -47,9 +44,9 @@ class B4igoVaultApiStorage:
             HTTPAdapter = None  # type: ignore[assignment,misc]
             Retry = None  # type: ignore[assignment,misc]
 
-        self.base_url = (
-            base_url or os.environ.get("B4IGO_API_BASE_URL") or ""
-        ).rstrip("/")
+        self.base_url = (base_url or os.environ.get("B4IGO_API_BASE_URL") or "").rstrip(
+            "/"
+        )
         self.api_key = api_key or os.environ.get("B4IGO_API_KEY", "")
         self.timeout_seconds = timeout_seconds or float(
             os.environ.get("B4IGO_API_TIMEOUT_SECS", "10")
@@ -169,7 +166,7 @@ class B4igoVaultApiStorage:
             "memberName": username,
             "memberId": "",
             "groupId": "",
-            # TODO: resolve InsuranceTypeId via getTypeOfHealthInsurance API; 0 is a placeholder
+            # TODO: resolve InsuranceTypeId via getTypeOfHealthInsurance API
             "InsuranceTypeId": 0,
             "othersValue": payload.get("type_of_health_insurance", ""),
             "markAsImportant": False,
@@ -376,9 +373,7 @@ class B4igoVaultApiStorage:
         response = self._request("PUT", endpoint, json_data=body)
         return response is not None and 200 <= response.status_code < 300
 
-    def delete_record(
-        self, id: int, record_type: str = "", username: str = ""
-    ) -> bool:
+    def delete_record(self, id: int, record_type: str = "", username: str = "") -> bool:
         """Delete a vault record via the B4iGO API.
 
         Args:
