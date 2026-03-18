@@ -1,4 +1,4 @@
-"""SQLite storage for vault records (doctors, insurance, meds, medical_history)."""
+"""SQLite storage for vault records (doctor, insurance, medication, history)."""
 
 import json
 import os
@@ -10,14 +10,14 @@ VAULT_RECORD_TYPES = ("doctor", "insurance", "medication", "medical_history")
 
 
 class VaultStorage:
-    """SQLite storage for vault CRUD. One table keyed by username and record_type."""
+    """SQLite storage for vault CRUD with simple JSON payloads."""
 
     def __init__(self, db_path: Optional[str] = None):
         """Initialize vault storage.
 
         Args:
-            db_path: Path to SQLite database. Defaults to B4IGO_VAULT_DB_PATH env
-                or email_agent.db in cwd for simplicity.
+            db_path: SQLite file path. Defaults to B4IGO_VAULT_DB_PATH
+                or email_agent.db in cwd.
         """
         self.db_path = db_path or os.environ.get(
             "B4IGO_VAULT_DB_PATH", "email_agent.db"
@@ -26,7 +26,7 @@ class VaultStorage:
 
     @contextmanager
     def _get_connection(self):
-        """Context manager for database connections."""
+        """Yield a short-lived SQLite connection."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         try:
@@ -39,7 +39,7 @@ class VaultStorage:
             conn.close()
 
     def _initialize_tables(self) -> None:
-        """Create vault_records table if not exists."""
+        """Create table and indexes if they do not exist."""
         with self._get_connection() as conn:
             conn.execute(
                 """
@@ -66,24 +66,15 @@ class VaultStorage:
     def add_record(
         self, username: str, record_type: str, payload: dict[str, Any]
     ) -> Optional[int]:
-        """Add a vault record.
-
-        Args:
-            username: Owner of the record.
-            record_type: One of doctor, insurance, medication, medical_history.
-            payload: JSON-serializable dict (schema fields).
-
-        Returns:
-            The new record id, or None on error.
-        """
+        """Persist a new vault record and return its id."""
         if record_type not in VAULT_RECORD_TYPES:
             return None
         try:
             payload_str = json.dumps(payload)
             with self._get_connection() as conn:
                 cursor = conn.execute(
-                    "INSERT INTO vault_records "
-                    "(username, record_type, payload) VALUES (?, ?, ?)",
+                    "INSERT INTO vault_records (username, record_type, payload) "
+                    "VALUES (?, ?, ?)",
                     (username, record_type, payload_str),
                 )
                 return cursor.lastrowid
@@ -96,17 +87,7 @@ class VaultStorage:
         record_type: Optional[str] = None,
         id: Optional[int] = None,
     ) -> list[dict[str, Any]]:
-        """Get vault records for a user, optionally by type or single id.
-
-        Args:
-            username: Owner to filter by.
-            record_type: Optional filter (doctor, insurance, medication,
-                medical_history).
-            id: Optional single record id (still scoped by username if provided).
-
-        Returns:
-            List of dicts with id, username, record_type, payload (parsed JSON).
-        """
+        """Read records by username and optional filters."""
         with self._get_connection() as conn:
             if id is not None:
                 cursor = conn.execute(
@@ -127,26 +108,25 @@ class VaultStorage:
                     (username,),
                 )
             rows = cursor.fetchall()
-        out = []
+
+        out: list[dict[str, Any]] = []
         for row in rows:
-            r = dict(row)
+            record = dict(row)
             try:
-                r["payload"] = json.loads(r["payload"])
+                record["payload"] = json.loads(record["payload"])
             except (TypeError, json.JSONDecodeError):
-                r["payload"] = {}
-            out.append(r)
+                record["payload"] = {}
+            out.append(record)
         return out
 
-    def update_record(self, id: int, payload: dict[str, Any]) -> bool:
-        """Update a vault record by id.
-
-        Args:
-            id: Record id.
-            payload: New JSON-serializable dict.
-
-        Returns:
-            True if a row was updated, False otherwise.
-        """
+    def update_record(
+        self,
+        id: int,
+        payload: dict[str, Any],
+        record_type: str = "",
+        username: str = "",
+    ) -> bool:
+        """Replace payload for an existing record id."""
         try:
             payload_str = json.dumps(payload)
             with self._get_connection() as conn:
@@ -158,15 +138,8 @@ class VaultStorage:
         except TypeError:
             return False
 
-    def delete_record(self, id: int) -> bool:
-        """Delete a vault record by id.
-
-        Args:
-            id: Record id.
-
-        Returns:
-            True if a row was deleted, False otherwise.
-        """
+    def delete_record(self, id: int, record_type: str = "", username: str = "") -> bool:
+        """Delete a record by id."""
         with self._get_connection() as conn:
             cursor = conn.execute("DELETE FROM vault_records WHERE id = ?", (id,))
             return cursor.rowcount > 0
