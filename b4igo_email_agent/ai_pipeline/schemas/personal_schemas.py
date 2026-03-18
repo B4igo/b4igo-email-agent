@@ -10,7 +10,8 @@ class Contact(BaseModel):
 
     name: str = Field(description="Full name of the contact")
     relationship: Optional[str] = Field(
-        default=None, description="Relationship to the recipient (e.g. friend, sibling, colleague)"
+        default=None,
+        description="Relationship to the recipient (e.g. friend, sibling, colleague)",
     )
     email: Optional[str] = Field(default=None, description="Contact's email address")
     phone: Optional[str] = Field(default=None, description="Contact's phone number")
@@ -31,7 +32,9 @@ class PersonalEvent(BaseModel):
         default=None, description="Date of the event (ISO format)"
     )
     time: Optional[str] = Field(default=None, description="Time of the event")
-    location: Optional[str] = Field(default=None, description="Location or venue of the event")
+    location: Optional[str] = Field(
+        default=None, description="Location or venue of the event"
+    )
     attendees: Optional[List[str]] = Field(
         default=None, description="Names of people attending or invited"
     )
@@ -51,6 +54,9 @@ class Reminder(BaseModel):
         default=None, description="Priority level (e.g. high, medium, low)"
     )
     category: Optional[str] = Field(
-        default=None, description="Category or tag for the reminder (e.g. family, errands, health)"
+        default=None,
+        description="Category or tag for the reminder (e.g. family, errands, health)",
     )
-    notes: Optional[str] = Field(default=None, description="Additional notes or context")
+    notes: Optional[str] = Field(
+        default=None, description="Additional notes or context"
+    )
