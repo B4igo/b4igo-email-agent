@@ -6,7 +6,7 @@ import requests
 from flask import Flask, request, jsonify
 
 # API Endpoints
-aiCall = "http://localhost:5000/api/startjob"
+aiCall = "http://localhost:5000/api/startjob" #TestCall: replace with actual call later
 accountEmailCall = "http://localhost:5100/api/pull"
 
 #Redis Connection Setup------------------------------
