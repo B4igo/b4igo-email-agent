@@ -7,8 +7,8 @@ from typing import Optional
 from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
+import b4igo_email_agent.ai_pipeline.schemas as schemas_pkg
 from b4igo_email_agent.ai_pipeline.domain_classifier import Domain
-from b4igo_email_agent.ai_pipeline.schemas import schemas
 from b4igo_email_agent.ai_pipeline.schemas.schema_prompter import SchemaPrompter
 from b4igo_email_agent.mail.models import EmailInput
 
@@ -55,7 +55,7 @@ class DomainParser:
             try:
                 schema_name = list(result.keys())[0]
                 schema_fields = result[schema_name]
-                schema_class = getattr(schemas, schema_name)
+                schema_class = getattr(schemas_pkg, schema_name)
                 parsed_result = schema_class(**schema_fields)
                 parsed_results.append(parsed_result)
             except (ValidationError, AttributeError, IndexError, KeyError, TypeError):

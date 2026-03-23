@@ -269,12 +269,12 @@ def accept_confirmation():
         if record:
             vault = VaultClient()
             vault_id = vault.create(current_user, record)
-            if vault_id is not None:
-                logger.info(
-                    "added confirmation #%s to vault as record id %s", conf_id, vault_id
-                )
-            else:
+            if vault_id is None:
                 logger.warning("vault create failed for confirmation #%s", conf_id)
+                return jsonify({"error": "Vault write failed"}), 502
+            logger.info(
+                "added confirmation #%s to vault as record id %s", conf_id, vault_id
+            )
         else:
             logger.warning(
                 "could not parse vault record from confirmation #%s", conf_id
