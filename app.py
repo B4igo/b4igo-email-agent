@@ -18,7 +18,9 @@ from flask_jwt_extended import (
     set_refresh_cookies,
     unset_jwt_cookies,
 )
+from requests import RequestException
 
+from b4igo_email_agent.account_manager.client import AccountManagerClient
 from b4igo_email_agent.database import db
 from b4igo_email_agent.vault.client import VaultClient
 from b4igo_email_agent.vault.utils import parse_vault_record
@@ -69,6 +71,7 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 3600  # 1 hour
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 86400  # 1 day
 
 jwt = JWTManager(app)
+account_manager_client = AccountManagerClient()
 
 
 # ROUTES
@@ -416,6 +419,76 @@ def gmail_oauth_callback():
     except Exception as e:
         logger.error("Error in Gmail OAuth callback for user %s: %s", get_jwt_identity(), e)
         return jsonify({"error": f"Failed to complete authorization: {str(e)}"}), 500
+
+
+@app.route("/api/accounts/link", methods=["POST"])
+@jwt_required()
+def link_account():
+    """Link an email provider account for the authenticated user."""
+    data = request.get_json(silent=True) or {}
+    current_user = get_jwt_identity()
+    b4igo_user_id = data.get("b4igoUserId", current_user)
+
+    required_fields = ["provider", "emailAddress", "credentials"]
+    if any(field not in data for field in required_fields):
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Missing required fields: provider, emailAddress, credentials"
+                    )
+                }
+            ),
+            400,
+        )
+
+    try:
+        response = account_manager_client.link_account(
+            b4igo_user_id=b4igo_user_id,
+            provider=data["provider"],
+            email_address=data["emailAddress"],
+            credentials=data["credentials"],
+            display_name=data.get("displayName"),
+            config=data.get("config"),
+        )
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager link call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/accounts", methods=["GET"])
+@jwt_required()
+def list_accounts():
+    """List linked provider accounts for the authenticated user."""
+    current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.list_accounts(current_user)
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager list call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/accounts/<int:account_id>", methods=["DELETE"])
+@jwt_required()
+def delete_account(account_id: int):
+    """Delete one linked account for the authenticated user."""
+    current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.delete_account(current_user, account_id)
+        if response.content:
+            return jsonify(response.json()), response.status_code
+        return "", response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager delete call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
 
 
 if __name__ == "__main__":
