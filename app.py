@@ -2,11 +2,14 @@
 
 import json
 import logging
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+from urllib.parse import urlencode
 from uuid import uuid4
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager,
@@ -24,15 +27,6 @@ from b4igo_email_agent.account_manager.client import AccountManagerClient
 from b4igo_email_agent.database import db
 from b4igo_email_agent.vault.client import VaultClient
 from b4igo_email_agent.vault.utils import parse_vault_record
-from b4igo_email_agent.email_connectors.gmail_connector import (
-    get_authorization_url,
-    handle_oauth_callback,
-    get_user_email_from_token,
-)
-from b4igo_email_agent.email_connectors.connector_types import ConnectorType
-
-# Store for PKCE code verifiers keyed by OAuth state
-_oauth_code_verifiers: dict[str, str] = {}
 
 # LOGGING
 # configure logging (does not show in production
@@ -57,9 +51,7 @@ executor = ThreadPoolExecutor(max_workers=4)
 
 
 # AUTHENTICATION INIT
-# Initialize database with example users
-db.add_user("user", "password", "user")
-db.add_user("admin", "adminpass", "admin")
+# Initialize database with example confirmations
 db.add_confirmation("user", '{"example_key2" : "example_value2"}')
 db.add_confirmation("user", '{"example_key3" : "example_value3"}')
 db.add_confirmation("admin", '{"example_key" : "example_value"}')
@@ -72,6 +64,32 @@ app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 86400  # 1 day
 
 jwt = JWTManager(app)
 account_manager_client = AccountManagerClient()
+frontend_base_url = os.environ.get("B4IGO_FRONTEND_URL", "http://localhost:5173").rstrip("/")
+backend_base_url = os.environ.get("B4IGO_BACKEND_URL", "http://localhost:5000").rstrip("/")
+
+
+def _seed_login_users() -> None:
+    """Seed local dev login users in account manager auth storage."""
+    demo_users = [
+        (os.environ.get("B4IGO_DEMO_USERNAME", "user"), os.environ.get("B4IGO_DEMO_PASSWORD", "password"), "user"),
+        (
+            os.environ.get("B4IGO_ADMIN_USERNAME", "admin"),
+            os.environ.get("B4IGO_ADMIN_PASSWORD", "adminpass"),
+            "admin",
+        ),
+    ]
+
+    for username, password, role in demo_users:
+        try:
+            response = account_manager_client.seed_user(username=username, password=password, role=role)
+            if response.status_code >= 400:
+                logger.warning("Failed to seed login user %s via account manager", username)
+        except RequestException as exc:
+            logger.warning("Skipping login seed; account manager unavailable: %s", exc)
+            break
+
+
+_seed_login_users()
 
 
 # ROUTES
@@ -95,9 +113,16 @@ def login():
     if not username or not password:
         return jsonify({"error": "Missing username or password"}), 400
 
-    user = db.get_user(username)
-    if not user or user["password"] != password:
+    try:
+        auth_response = account_manager_client.verify_user(username, password)
+    except RequestException as exc:
+        logger.error("AccountManager auth verify failed: %s", exc)
+        return jsonify({"error": "Authentication service unavailable"}), 503
+
+    if auth_response.status_code == 401:
         return jsonify({"error": "Invalid username or password"}), 401
+    if auth_response.status_code >= 400:
+        return jsonify({"error": "Failed to authenticate"}), 502
 
     # generate tokens
     access_token = create_access_token(identity=username)
@@ -156,8 +181,16 @@ def enqueue_confirmation():
         username = data["username"]
         json_payload = data["jsonPayload"]
 
-        if not db.get_user(username):
-            return jsonify({"error": f"User '{username}' does not exist"}), 404
+        try:
+            exists_response = account_manager_client.user_exists(username)
+            exists_payload = exists_response.json()
+            if exists_response.status_code >= 400 or not exists_payload.get("exists"):
+                return jsonify({"error": f"User '{username}' does not exist"}), 404
+        except RequestException as exc:
+            logger.error("AccountManager user existence check failed: %s", exc)
+            return jsonify({"error": "Authentication service unavailable"}), 503
+        except ValueError:
+            return jsonify({"error": "Invalid response from authentication service"}), 502
 
         confirmation_id = db.add_confirmation(username, json_payload)
         if confirmation_id:
@@ -294,12 +327,27 @@ def accept_confirmation():
 def get_email_connectors():
     """Get all email connectors for the current user."""
     current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.list_accounts(current_user)
+        accounts = response.json()
+    except RequestException as exc:
+        logger.error("AccountManager list call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
 
-    connectors = db.get_email_connectors(current_user)
-
-    for connector in connectors:
-        connector["has_token"] = bool(connector.get("token_json"))
-        connector.pop("token_json", None)
+    connectors = [
+        {
+            "id": account["id"],
+            "connector_type": account["provider"],
+            "connector_name": account.get("displayName") or account["emailAddress"],
+            "connector_email": account["emailAddress"],
+            "has_token": bool(account.get("credentials")),
+            "last_read": None,
+            "last_error_msg": None,
+        }
+        for account in accounts
+    ]
 
     return jsonify(connectors), 200
 
@@ -309,116 +357,134 @@ def get_email_connectors():
 def remove_email_connector(connector_id):
     """Remove an email connector by ID."""
     current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.delete_account(current_user, connector_id)
+    except RequestException as exc:
+        logger.error("AccountManager delete call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
 
-    if db.remove_email_connector(connector_id, current_user):
+    if response.status_code == 204:
         logger.info("Removed email connector id %s for user %s", connector_id, current_user)
         return jsonify({"message": "Email connector removed successfully"}), 200
-    else:
+    if response.status_code == 404:
         return jsonify({"error": "Connector not found or does not belong to user"}), 404
+    return jsonify({"error": "Failed to remove connector"}), 502
 
 
 @app.route("/api/email-connectors/types", methods=["GET"])
 @jwt_required()
 def get_connector_type_options():
-    """Get list of available connector types (e.g., ['gmail'])."""
-    connector_types = [t.value for t in ConnectorType]
-    return jsonify(connector_types), 200
+    """Get list of available connector types from account manager."""
+    try:
+        response = account_manager_client.list_provider_types()
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager provider types call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
 
 
 @app.route("/api/email-connectors/setup/<connector_type>", methods=["GET"])
 @jwt_required()
 def get_connector_setup(connector_type):
-    """Get the setup steps required for a specific connector type."""
+    """Get setup steps for a provider and normalize callback URLs for frontend."""
+    current_user = get_jwt_identity()
     try:
-        if connector_type == ConnectorType.GMAIL.value:
-            redirect_uri = "http://localhost:5173/email-connectors/gmail/callback"
-            client_secrets_file = "client_secrets.json"
-            
-            auth_url, state, code_verifier = get_authorization_url(client_secrets_file, redirect_uri)
+        oauth_callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{connector_type}"
+        response = account_manager_client.get_provider_setup(
+            provider=connector_type,
+            b4igo_user_id=current_user,
+            oauth_callback_url=oauth_callback_url,
+            connector_name=request.args.get("name"),
+        )
+        if response.status_code >= 400:
+            return jsonify(response.json()), response.status_code
 
-            _oauth_code_verifiers[state] = code_verifier
+        steps = response.json()
+        for step in steps:
+            callback = step.get("callback")
+            if isinstance(callback, str) and callback:
+                is_full_url = callback.startswith("http://") or callback.startswith(
+                    "https://"
+                )
+                if not is_full_url:
+                    step["callback"] = (
+                        f"/api/email-step-callback/{connector_type}/{callback}"
+                    )
 
-            steps = [
-                {
-                    "type": "redirect",
-                    "title": "Authorize Gmail Access",
-                    "desc": "You will be redirected to Google to authorize access to your Gmail account",
-                    "callback": "/api/email-connectors/gmail/callback",
-                    "value": auth_url,
-                    "state": state
-                }
-            ]
-            
-            return jsonify(steps), 200
-        else:
-            return jsonify({"error": f"Unsupported connector type: {connector_type}"}), 400
+        return jsonify(steps), 200
 
     except Exception as e:
         logger.error("Error getting connector setup for %s: %s", connector_type, e)
         return jsonify({"error": "Failed to get setup steps"}), 500
 
 
-@app.route("/api/email-connectors/gmail/callback", methods=["GET"])
+@app.route("/api/email-step-callback/<provider>/<function_name>", methods=["POST"])
 @jwt_required()
-def gmail_oauth_callback():
-    """Handle OAuth callback from Gmail authorization."""
+def run_email_step_callback(provider: str, function_name: str):
+    """Run one provider setup callback through account manager validation logic."""
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        return jsonify({"error": "Validation error"}), 400
+
     try:
-        current_user = get_jwt_identity()
-        
+        response = account_manager_client.run_provider_step_callback(
+            provider=provider,
+            function_name=function_name,
+            steps=steps,
+        )
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager step callback call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/email-connectors/oauth/callback/<provider>", methods=["GET"])
+def provider_oauth_callback(provider: str):
+    """Handle provider OAuth callback and redirect to generic frontend callback page."""
+    frontend_callback_url = f"{frontend_base_url}/email-connectors/callback"
+
+    def _redirect_with_params(params: dict[str, str]) -> Any:
+        return redirect(f"{frontend_callback_url}?{urlencode(params)}")
+
+    try:
         auth_code = request.args.get("code")
         state = request.args.get("state")
-        
-        if not auth_code:
-            return jsonify({"error": "Missing authorization code"}), 400
-        
-        connector_name = request.args.get("name", "Gmail Account")
-        
-        redirect_uri = "http://localhost:5173/email-connectors/gmail/callback"
-        client_secrets_file = "client_secrets.json"
-        
-        code_verifier = _oauth_code_verifiers.pop(state, None) if state else None
+        if not auth_code or not state:
+            return _redirect_with_params({"success": "0", "error": "Missing OAuth code or state"})
 
-        token_json = handle_oauth_callback(auth_code, client_secrets_file, redirect_uri, state, code_verifier)
-
-        connector_email = get_user_email_from_token(token_json)
-        
-        if db.email_already_connected(current_user, connector_email):
-            logger.warning(
-                "User %s attempted to connect already connected email %s",
-                current_user,
-                connector_email
-            )
-            return jsonify({
-                "error": f"Email {connector_email} is already connected to your account"
-            }), 409
-        
-        connector_id = db.add_email_connector(
-            username=current_user,
-            connector_type=ConnectorType.GMAIL.value,
-            connector_name=connector_name,
-            token_json=token_json,
-            connector_email=connector_email
+        callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{provider}"
+        response = account_manager_client.complete_provider_oauth(
+            provider=provider,
+            auth_code=auth_code,
+            state=state,
+            oauth_callback_url=callback_url,
         )
-        
-        if connector_id:
-            logger.info(
-                "Successfully added Gmail connector id %s for user %s (email: %s)",
-                connector_id,
-                current_user,
-                connector_email
+        result = response.json()
+        if response.status_code >= 400:
+            logger.warning("Provider OAuth callback failed for %s: %s", provider, result)
+            return _redirect_with_params(
+                {
+                    "success": "0",
+                    "error": str(result.get("error", "OAuth callback failed")),
+                }
             )
-            return jsonify({
-                "message": "Gmail account connected successfully",
-                "id": connector_id,
-                "connector_email": connector_email
-            }), 201
-        else:
-            logger.error("Failed to add Gmail connector for user %s", current_user)
-            return jsonify({"error": "Failed to save email connector"}), 500
-        
+
+        connector_email = str(result.get("emailAddress", ""))
+        return _redirect_with_params(
+            {
+                "success": "1",
+                "email": connector_email,
+                "id": str(result.get("id", "")),
+            }
+        )
     except Exception as e:
-        logger.error("Error in Gmail OAuth callback for user %s: %s", get_jwt_identity(), e)
-        return jsonify({"error": f"Failed to complete authorization: {str(e)}"}), 500
+        logger.error("Error in provider OAuth callback for %s: %s", provider, e)
+        return _redirect_with_params({"success": "0", "error": "Failed to complete authorization"})
 
 
 @app.route("/api/accounts/link", methods=["POST"])

@@ -1,5 +1,5 @@
 ﻿import { api } from "./Auth.ts";
-import type { EmailConnector, EmailSetupStep, AddConnectorResponse } from "../Domain/EmailConnector.ts";
+import type { EmailConnector, EmailSetupStep } from "../Domain/EmailConnector.ts";
 
 export const emailConnectors = {
     async getAll(): Promise<EmailConnector[]> {
@@ -12,8 +12,13 @@ export const emailConnectors = {
         return data;
     },
 
-    async getSetupSteps(connectorType: string): Promise<EmailSetupStep[]> {
-        const { data } = await api.get<EmailSetupStep[]>(`/email-connectors/setup/${connectorType}`);
+    async getSetupSteps(connectorType: string, connectorName?: string): Promise<EmailSetupStep[]> {
+        const params = new URLSearchParams();
+        if (connectorName) {
+            params.set('name', connectorName);
+        }
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        const { data } = await api.get<EmailSetupStep[]>(`/email-connectors/setup/${connectorType}${suffix}`);
         return data;
     },
 
@@ -21,26 +26,8 @@ export const emailConnectors = {
         await api.delete(`/email-connectors/${connectorId}`);
     },
 
-    async addGmailManual(connectorName: string, tokenJson: string): Promise<AddConnectorResponse> {
-        const { data } = await api.post<AddConnectorResponse>('/email-connectors/gmail/add', {
-            connector_name: connectorName,
-            token_json: tokenJson
-        });
+    async runStepCallback(callbackPath: string, steps: EmailSetupStep[]): Promise<{ success: boolean; message: string }> {
+        const { data } = await api.post<{ success: boolean; message: string }>(callbackPath, { steps });
         return data;
     },
-
-    async completeGmailOAuth(authCode: string, connectorName?: string, state?: string): Promise<AddConnectorResponse> {
-        const params = new URLSearchParams({ code: authCode });
-        if (connectorName) {
-            params.append('name', connectorName);
-        }
-        if (state) {
-            params.append('state', state);
-        }
-
-        const { data } = await api.get<AddConnectorResponse>(
-            `/email-connectors/gmail/callback?${params.toString()}`
-        );
-        return data;
-    }
 };

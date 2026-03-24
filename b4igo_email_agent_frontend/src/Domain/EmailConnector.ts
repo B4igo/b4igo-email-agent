@@ -9,16 +9,9 @@
 }
 
 export interface EmailSetupStep {
-    type: 'redirect' | 'entry' | 'boolean';
+    type: 'redirect' | 'boolean' | 'input' | 'password';
     title: string;
     desc: string;
-    callback: string;
-    value: string;
-    state?: string;
-}
-
-export interface AddConnectorResponse {
-    message: string;
-    id: number;
-    connector_email: string;
+    callback?: string;
+    value?: string;
 }

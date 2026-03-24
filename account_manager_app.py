@@ -26,6 +26,53 @@ def health_check():
     return jsonify({"status": "healthy", "service": "account_manager"}), 200
 
 
+@app.route("/api/auth/seed-user", methods=["POST"])
+def seed_user():
+    """Create or update one user for app-level authentication."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    username = payload.get("username")
+    password = payload.get("password")
+    role = payload.get("role", "user")
+    if not username or not password:
+        return jsonify({"error": "Missing required fields: username, password"}), 400
+
+    user = service.seed_user(username=str(username), password=str(password), role=str(role))
+    return jsonify(user), 201
+
+
+@app.route("/api/auth/verify", methods=["POST"])
+def verify_user_auth():
+    """Validate username/password and return user profile."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    username = payload.get("username")
+    password = payload.get("password")
+    if not username or not password:
+        return jsonify({"error": "Missing required fields: username, password"}), 400
+
+    user = service.authenticate_user(str(username), str(password))
+    if user is None:
+        return jsonify({"error": "Invalid username or password"}), 401
+    return jsonify(user), 200
+
+
+@app.route("/api/auth/users/<username>/exists", methods=["GET"])
+def user_exists(username: str):
+    """Check whether username exists in account-manager auth storage."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    return jsonify({"exists": service.user_exists(username)}), 200
+
+
 @app.route("/api/accounts/link", methods=["POST"])
 def link_account():
     """Link or update one provider account for a B4iGO user."""
@@ -84,6 +131,94 @@ def delete_account(b4igo_user_id: str, account_id: int):
     if service.delete_account(b4igo_user_id, account_id):
         return "", 204
     return jsonify({"error": "Account not found"}), 404
+
+
+@app.route("/api/providers/types", methods=["GET"])
+def list_provider_types():
+    """List provider types available for generic setup UI."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    return jsonify(service.list_provider_types()), 200
+
+
+@app.route("/api/providers/<provider>/setup", methods=["POST"])
+def get_provider_setup(provider: str):
+    """Build provider setup steps including OAuth redirects when required."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    b4igo_user_id = payload.get("b4igoUserId")
+    callback_url = payload.get("oauthCallbackUrl")
+    connector_name = payload.get("connectorName")
+    if not b4igo_user_id or not callback_url:
+        return jsonify({"error": "Missing required fields: b4igoUserId, oauthCallbackUrl"}), 400
+
+    client_secrets_file = os.environ.get("B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json")
+
+    steps = service.get_provider_setup_steps(
+        provider=provider,
+        b4igo_user_id=b4igo_user_id,
+        oauth_callback_url=callback_url,
+        client_secrets_file=client_secrets_file,
+        connector_name=connector_name,
+    )
+    if steps is None:
+        return jsonify({"error": "Unsupported provider"}), 400
+    return jsonify(steps), 200
+
+
+@app.route("/api/providers/<provider>/steps/<function_name>", methods=["POST"])
+def run_provider_step_callback(provider: str, function_name: str):
+    """Run one provider callback after validating step count and step types."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        return jsonify({"error": "Validation error"}), 400
+
+    result = service.run_provider_setup_callback(provider, function_name, steps)
+    status = 200 if result.get("success") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/providers/<provider>/oauth/callback", methods=["POST"])
+def complete_provider_oauth(provider: str):
+    """Complete provider OAuth callback and upsert linked account."""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    auth_code = payload.get("code")
+    state = payload.get("state")
+    callback_url = payload.get("oauthCallbackUrl")
+    if not auth_code or not state or not callback_url:
+        return jsonify({"error": "Missing required fields: code, state, oauthCallbackUrl"}), 400
+
+    client_secrets_file = os.environ.get("B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json")
+
+    try:
+        account = service.complete_provider_oauth(
+            provider=provider,
+            auth_code=auth_code,
+            state=state,
+            client_secrets_file=client_secrets_file,
+            redirect_uri=callback_url,
+        )
+    except Exception as exc:
+        logger.error("Failed to complete provider OAuth: %s", exc)
+        return jsonify({"error": "Failed to complete authorization"}), 500
+
+    if account is None:
+        return jsonify({"error": "Validation error"}), 400
+    return jsonify(account), 201
 
 
 @app.route("/api/pull", methods=["POST"])

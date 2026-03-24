@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import {EmailConnectorFlow} from "../Functions/EmailConnectorFlow.ts";
 
-export function GmailCallbackPage() {
+export function ProviderCallbackPage() {
     const navigate = useNavigate();
     const [error, setError] = useState<string>('');
     const callbackInProgress = useRef(false);
@@ -22,7 +22,7 @@ export function GmailCallbackPage() {
     }, []);
 
     const handleCallback = async () => {
-        const result = await EmailConnectorFlow.handleGmailCallback();
+        const result = await EmailConnectorFlow.handleProviderCallback();
 
         if (result.success) {
             navigate('/email-connectors');
@@ -39,7 +39,7 @@ export function GmailCallbackPage() {
                         <>
                             <CircularProgress size={60} />
                             <Typography variant="h5" component="h2" align="center">
-                                Connecting Gmail...
+                                Finishing connector setup...
                             </Typography>
                         </>
                     ) : (

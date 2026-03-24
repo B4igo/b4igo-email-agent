@@ -7,7 +7,7 @@ import {Confirmations} from "./Pages/Confirmations.tsx";
 import Logout from "./Pages/Logout.tsx";
 import NavBar from "./Components/NavBar.tsx";
 import {EmailConnectorsPage} from "./Pages/EmailConnectors.tsx";
-import {GmailCallbackPage} from "./Pages/Callback.tsx";
+import {ProviderCallbackPage} from "./Pages/Callback.tsx";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
@@ -27,7 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 <NavBar>
                                     <Routes>
                                         <Route path="/" element={<Confirmations/>} />
-                                        <Route path="/email-connectors/gmail/callback" element={<GmailCallbackPage/>} />
+                                        <Route path="/email-connectors/callback" element={<ProviderCallbackPage/>} />
                                         <Route path="/email-connectors" element={<EmailConnectorsPage/>} />
                                         <Route path="/logout" element={<Logout />} />
                                         <Route path="*" element={<Navigate to="/" replace />} />

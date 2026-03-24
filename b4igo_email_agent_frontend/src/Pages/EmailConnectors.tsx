@@ -20,6 +20,7 @@ import {EmailConnectorFlow} from "../Functions/EmailConnectorFlow.ts";
 
 export function EmailConnectorsPage() {
     const [connectors, setConnectors] = useState<EmailConnector[]>([]);
+    const [providerTypes, setProviderTypes] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [connectorName, setConnectorName] = useState('');
 
@@ -29,8 +30,12 @@ export function EmailConnectorsPage() {
 
     const loadConnectors = async () => {
         try {
-            const data = await emailConnectors.getAll();
-            setConnectors(data);
+            const [connectorsData, providerTypesData] = await Promise.all([
+                emailConnectors.getAll(),
+                emailConnectors.getTypes(),
+            ]);
+            setConnectors(connectorsData);
+            setProviderTypes(providerTypesData);
         } catch (error) {
             console.error('Failed to load connectors:', error);
         } finally {
@@ -46,11 +51,11 @@ export function EmailConnectorsPage() {
         return connectorName.trim() === '' || isDuplicateName(connectorName.trim());
     };
 
-    const handleAddGmail = async () => {
+    const handleAddProvider = async (provider: string) => {
         try {
-            await EmailConnectorFlow.startGmailOAuth(connectorName.trim());
+            await EmailConnectorFlow.startProviderSetup(provider, connectorName.trim());
         } catch (error) {
-            console.error('Failed to start Gmail OAuth:', error);
+            console.error('Failed to start connector setup:', error);
         }
     };
 
@@ -149,14 +154,17 @@ export function EmailConnectorsPage() {
                                 fullWidth
                             />
                             <Stack spacing={1} direction="row" justifyContent="flex-end">
-                                <Button
-                                    variant="contained"
-                                    color="primary"
-                                    onClick={handleAddGmail}
-                                    size="large"
-                                    disabled={isAddButtonDisabled()}>
-                                    Add Gmail
-                                </Button>
+                                {providerTypes.map((providerType) => (
+                                    <Button
+                                        key={providerType}
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={() => handleAddProvider(providerType)}
+                                        size="large"
+                                        disabled={isAddButtonDisabled()}>
+                                        Add {providerType}
+                                    </Button>
+                                ))}
                             </Stack>
                         </Stack>
                     </Paper>

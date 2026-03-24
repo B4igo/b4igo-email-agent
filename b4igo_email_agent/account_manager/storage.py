@@ -6,7 +6,7 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Any, Optional
 
-from .models import LinkedAccount, ProviderType
+from .models import GmailOAuthSession, LinkedAccount, ProviderType
 
 
 class AccountStorage:
@@ -43,6 +43,17 @@ class AccountStorage:
         with self._get_connection() as conn:
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    password TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS linked_email_accounts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     b4igo_user_id TEXT NOT NULL,
@@ -61,6 +72,112 @@ class AccountStorage:
                 "CREATE INDEX IF NOT EXISTS idx_accounts_user "
                 "ON linked_email_accounts(b4igo_user_id)"
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS gmail_oauth_sessions (
+                    state TEXT PRIMARY KEY,
+                    b4igo_user_id TEXT NOT NULL,
+                    code_verifier TEXT NOT NULL,
+                    connector_name TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+
+    def upsert_user(self, username: str, password: str, role: str) -> dict[str, Any]:
+        """Create or update one user credential record."""
+        with self._get_connection() as conn:
+            existing = conn.execute(
+                "SELECT username FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if existing is None:
+                conn.execute(
+                    "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                    (username, password, role),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE users
+                    SET password = ?, role = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE username = ?
+                    """,
+                    (password, role, username),
+                )
+
+            row = conn.execute(
+                "SELECT username, role, created_at, updated_at FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+
+        return {
+            "username": row["username"],
+            "role": row["role"],
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
+        }
+
+    def get_user(self, username: str) -> Optional[dict[str, Any]]:
+        """Return one user record including password for auth checks."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT username, password, role FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "username": row["username"],
+            "password": row["password"],
+            "role": row["role"],
+        }
+
+    def user_exists(self, username: str) -> bool:
+        """Return whether the given username exists."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+        return row is not None
+
+    def save_gmail_oauth_session(
+        self,
+        state: str,
+        b4igo_user_id: str,
+        code_verifier: str,
+        connector_name: Optional[str] = None,
+    ) -> None:
+        """Persist Gmail OAuth state and PKCE verifier for callback completion."""
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO gmail_oauth_sessions
+                (state, b4igo_user_id, code_verifier, connector_name)
+                VALUES (?, ?, ?, ?)
+                """,
+                (state, b4igo_user_id, code_verifier, connector_name),
+            )
+
+    def pop_gmail_oauth_session(self, state: str) -> Optional[GmailOAuthSession]:
+        """Load and delete one Gmail OAuth session by state."""
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM gmail_oauth_sessions WHERE state = ?",
+                (state,),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute("DELETE FROM gmail_oauth_sessions WHERE state = ?", (state,))
+
+        return GmailOAuthSession(
+            state=row["state"],
+            b4igo_user_id=row["b4igo_user_id"],
+            code_verifier=row["code_verifier"],
+            connector_name=row["connector_name"],
+            created_at=row["created_at"],
+        )
 
     def upsert_account(
         self,

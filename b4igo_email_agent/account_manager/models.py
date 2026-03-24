@@ -1,10 +1,11 @@
 """Typed models used by the account manager domain."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal
 
 ProviderType = Literal["imap", "gmail"]
-
+SetupType = Literal["redirect", "boolean", "input", "password"]
 
 @dataclass
 class LinkedAccount:
@@ -19,6 +20,7 @@ class LinkedAccount:
     config: dict[str, Any]
     created_at: str
     updated_at: str
+    last_read: datetime | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         """Return a safe representation without secret credential values.
@@ -38,6 +40,27 @@ class LinkedAccount:
             "credentials": _redact_credentials(self.credentials),
         }
 
+@dataclass
+class EmailSetupStep:
+    """A step used to configure an email provider account.
+       The callback should be a function name for that provider or a full url."""
+
+    title: str
+    desc: str
+    type: SetupType
+    value: str | None = None
+    callback: str | None = None
+
+
+@dataclass
+class GmailOAuthSession:
+    """Persisted OAuth session used to complete Gmail callback safely."""
+
+    state: str
+    b4igo_user_id: str
+    code_verifier: str
+    connector_name: str | None
+    created_at: str
 
 def _redact_credentials(credentials: dict[str, Any]) -> dict[str, Any]:
     """Redact credential keys that likely contain secrets."""
