@@ -1,0 +1,154 @@
+# B4iGO Email Agent - Full Demo Stack
+#
+# Combines:
+#   - smtp-imap-test mail server + seeded emails + webmail
+#   - Host Ollama (expects qwen3:8b to be available via `ollama pull qwen3:8b`)
+#   - b4igo backend (Flask API)
+#   - b4igo frontend (React/Vite)
+#   - mail ingest (IMAP → AI pipeline → backend)
+#
+# Usage:
+#   cd demo/
+#   ./setup.sh          # generates mail accounts config, then starts everything
+#   ./setup.sh -d       # same but detached
+#
+# URLs:
+#   Frontend:  http://localhost:5173  (login: user / password)
+#   Webmail:   http://localhost:8888  (login: alice@test.local / password123)
+#   Backend:   http://localhost:5000/api/health
+
+services:
+  # ──────────────────────────────────────────────
+  # Mail server (docker-mailserver)
+  # ──────────────────────────────────────────────
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail.test.local
+    domainname: test.local
+    ports:
+      - "1025:25"
+      - "1143:143"
+    environment:
+      - PERMIT_DOCKER=network
+      - ONE_DIR=1
+      - ENABLE_CLAMAV=0
+      - ENABLE_SPAMASSASSIN=0
+      - ENABLE_FAIL2BAN=0
+      - ENABLE_POSTGREY=0
+      - ENABLE_AMAVIS=0
+      - SSL_TYPE=
+      - SUPERVISOR_LOGLEVEL=warn
+      - DOVECOT_AUTH_BIND=no
+    volumes:
+      - maildata:/var/mail
+      - mailstate:/var/mail-state
+      - ../../smtp-imap-test/config/:/tmp/docker-mailserver/
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep -q ':25' && ss -tlnp | grep -q ':143'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Seed mailboxes with test emails
+  # ──────────────────────────────────────────────
+  seed:
+    build: ../../smtp-imap-test/seed
+    container_name: mail-seed
+    depends_on:
+      mailserver:
+        condition: service_healthy
+    environment:
+      - MAIL_HOST=mailserver
+      - MAIL_DOMAIN=test.local
+      - SMTP_PORT=25
+      - IMAP_PORT=143
+
+  # ──────────────────────────────────────────────
+  # Webmail UI (SnappyMail)
+  # ──────────────────────────────────────────────
+  webmail:
+    build: ../../smtp-imap-test/snappymail
+    container_name: webmail
+    ports:
+      - "8888:8888"
+    volumes:
+      - snappymail_data:/var/lib/snappymail
+    depends_on:
+      mailserver:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # B4iGO Backend (Flask API)
+  # ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.backend
+    container_name: b4igo-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+    depends_on:
+      mailserver:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # B4iGO Frontend (React/Vite dev server)
+  # ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.frontend
+    container_name: b4igo-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - SERVER_HTTP=http://backend:5000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Mail Ingest (IMAP → AI pipeline → Backend API)
+  # ──────────────────────────────────────────────
+  mail-ingest:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.ingest
+    container_name: mail-ingest
+    # Host network so we can reach Ollama on localhost:11434
+    # (Ollama binds to 127.0.0.1 by default)
+    network_mode: host
+    environment:
+      - IMAP_HOST=localhost
+      - IMAP_PORT=1143
+      - IMAP_USER=alice@test.local
+      - IMAP_PASS=password123
+      - BACKEND_URL=http://localhost:5000
+      - BACKEND_USER=user
+      - OLLAMA_HOST=http://localhost:11434
+      - POLL_INTERVAL=0  # run once; set >0 to poll
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+
+volumes:
+  maildata:
+  mailstate:
+  snappymail_data:
