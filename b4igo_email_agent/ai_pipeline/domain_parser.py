@@ -8,9 +8,19 @@ from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
 from b4igo_email_agent.ai_pipeline.domain_classifier import Domain
-from b4igo_email_agent.ai_pipeline.schemas import schemas
+from b4igo_email_agent.ai_pipeline.schemas import (
+    legal_schemas,
+    personal_schemas,
+    schemas,
+)
 from b4igo_email_agent.ai_pipeline.schemas.schema_prompter import SchemaPrompter
 from b4igo_email_agent.mail.models import EmailInput
+
+_DOMAIN_MODULES = {
+    "health": schemas,
+    "legal": legal_schemas,
+    "personal": personal_schemas,
+}
 
 
 class DomainParser:
@@ -32,7 +42,9 @@ class DomainParser:
             }
         )
 
-    def _validate_response(self, response_content: Optional[str]) -> list[BaseModel]:
+    def _validate_response(
+        self, response_content: Optional[str], domain: Domain
+    ) -> list[BaseModel]:
         """Validates the response content and converts it to BaseModels."""
         if not response_content:
             raise ValueError("No response content to parse.")
@@ -47,7 +59,7 @@ class DomainParser:
         if not isinstance(results, list):
             raise ValueError("'results' key must be a list.")
 
-        # TODO - Check for empty strings or null values
+        module = _DOMAIN_MODULES.get(domain)
         parsed_results: list[BaseModel] = []
         for result in results:
             if not isinstance(result, dict) or not result:
@@ -55,11 +67,15 @@ class DomainParser:
             try:
                 schema_name = list(result.keys())[0]
                 schema_fields = result[schema_name]
-                schema_class = getattr(schemas, schema_name)
+                if module is None:
+                    continue
+                schema_class = getattr(module, schema_name, None)
+                if schema_class is None:
+                    continue
                 parsed_result = schema_class(**schema_fields)
                 parsed_results.append(parsed_result)
-            except (ValidationError, AttributeError, IndexError, KeyError, TypeError):
-                # Invalid schema name, missing keys, or invalid fields: skip.
+            except (ValidationError, IndexError, KeyError, TypeError):
+                # Missing keys or invalid fields: skip.
                 continue
 
         return parsed_results
@@ -88,6 +104,6 @@ class DomainParser:
             model="qwen3:8b", messages=messages, think=False, format="json"
         )
         response_content = response.message.content
-        entries = self._validate_response(response_content)
+        entries = self._validate_response(response_content, domain)
 
         return entries

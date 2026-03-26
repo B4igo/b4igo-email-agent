@@ -7,6 +7,17 @@ from typing import Any, Dict, List
 from unittest import TestCase, mock
 
 from b4igo_email_agent.ai_pipeline.domain_parser import DomainParser
+from b4igo_email_agent.ai_pipeline.schemas.legal_schemas import (
+    Attorney,
+    Contract,
+    CourtDate,
+    LegalNotice,
+)
+from b4igo_email_agent.ai_pipeline.schemas.personal_schemas import (
+    Contact,
+    PersonalEvent,
+    Reminder,
+)
 from b4igo_email_agent.ai_pipeline.schemas.schemas import (
     Appointment,
     Bill,
@@ -263,6 +274,217 @@ class TestDomainParser(TestCase):
             self.assertIsNotNone(
                 medication.name_of_medicine, f"Medication missing name: {medication}"
             )
+
+
+_MOCK_PERSONAL_RESPONSE_JSON = {
+    "results": [
+        {"Contact": {"name": "Marcus Thompson", "email": "marcus@gmail.com"}},
+        {"PersonalEvent": {"title": "Birthday Party", "date": "2026-04-05"}},
+        {"Reminder": {"title": "File taxes"}},
+    ]
+}
+
+_MOCK_LEGAL_RESPONSE_JSON = {
+    "results": [
+        {
+            "LegalNotice": {
+                "title": "Cease and Desist",
+                "action_required": "Stop using trademark",
+            }
+        },
+        {"Contract": {"title": "Software Services Agreement"}},
+        {"CourtDate": {"date": "2026-04-10", "case_number": "CV-2026-04821"}},
+        {"Attorney": {"name": "Rachel Chen", "firm": "Chen Legal Practice"}},
+    ]
+}
+
+
+class TestPersonalDomainParser(TestCase):
+    """Unit tests for DomainParser parsing with personal domain."""
+
+    test_cases: List[Dict[str, Any]]
+    parser: DomainParser
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Load test emails from JSON and initialize parser."""
+        cls.parser = DomainParser()
+
+        test_file = Path(__file__).parent / "test_emails.json"
+        with open(test_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        cls.test_cases = data["personal_emails"]
+
+    def setUp(self) -> None:
+        """Patch ollama.chat so tests do not require Ollama or qwen3:8b."""
+        self._chat_patcher = mock.patch(
+            "b4igo_email_agent.ai_pipeline.domain_parser.chat"
+        )
+        mock_chat = self._chat_patcher.start()
+        mock_response = mock.MagicMock()
+        mock_response.message.content = json.dumps(_MOCK_PERSONAL_RESPONSE_JSON)
+        mock_chat.return_value = mock_response
+
+    def tearDown(self) -> None:
+        """Stop patching ollama.chat."""
+        self._chat_patcher.stop()
+
+    def _load_email(self, email_data: Dict[str, Any]) -> EmailInput:
+        """Convert JSON email data to EmailInput instance."""
+        return EmailInput(
+            from_address=EmailAddress(**email_data["from_address"]),
+            to_address=[EmailAddress(**addr) for addr in email_data["to_address"]],
+            subject=email_data["subject"],
+            body=email_data["body"],
+            received_at=datetime.fromisoformat(email_data["received_at"]),
+        )
+
+    def _get_test_case(self, name: str) -> Dict[str, Any]:
+        """Get a test case by name."""
+        for case in self.test_cases:
+            if case["name"] == name:
+                return case
+        raise ValueError(f"Test case '{name}' not found")
+
+    def test_single_contact(self) -> None:
+        """Test parsing email with Contact information."""
+        test_case = self._get_test_case("single_contact")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "personal")
+
+        contacts = [r for r in results if isinstance(r, Contact)]
+        self.assertGreater(len(contacts), 0, "No Contact instance found")
+        self.assertIsNotNone(contacts[0].name, "Contact name is None")
+
+    def test_personal_event(self) -> None:
+        """Test parsing email with PersonalEvent information."""
+        test_case = self._get_test_case("personal_event")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "personal")
+
+        events = [r for r in results if isinstance(r, PersonalEvent)]
+        self.assertGreater(len(events), 0, "No PersonalEvent instance found")
+        self.assertIsNotNone(events[0].title, "PersonalEvent title is None")
+        self.assertIsNotNone(events[0].date, "PersonalEvent date is None")
+
+    def test_reminder_with_deadline(self) -> None:
+        """Test parsing email with Reminder information."""
+        test_case = self._get_test_case("reminder_with_deadline")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "personal")
+
+        reminders = [r for r in results if isinstance(r, Reminder)]
+        self.assertGreater(len(reminders), 0, "No Reminder instance found")
+        self.assertIsNotNone(reminders[0].title, "Reminder title is None")
+
+    def test_contact_and_event(self) -> None:
+        """Test parsing email with both Contact and PersonalEvent information."""
+        test_case = self._get_test_case("contact_and_event")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "personal")
+
+        contacts = [r for r in results if isinstance(r, Contact)]
+        events = [r for r in results if isinstance(r, PersonalEvent)]
+        self.assertGreater(len(contacts), 0, "No Contact instance found")
+        self.assertGreater(len(events), 0, "No PersonalEvent instance found")
+
+
+class TestLegalDomainParser(TestCase):
+    """Unit tests for DomainParser parsing with legal domain."""
+
+    test_cases: List[Dict[str, Any]]
+    parser: DomainParser
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Load test emails from JSON and initialize parser."""
+        cls.parser = DomainParser()
+
+        test_file = Path(__file__).parent / "test_emails.json"
+        with open(test_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        cls.test_cases = data["legal_emails"]
+
+    def setUp(self) -> None:
+        """Patch ollama.chat so tests do not require Ollama or qwen3:8b."""
+        self._chat_patcher = mock.patch(
+            "b4igo_email_agent.ai_pipeline.domain_parser.chat"
+        )
+        mock_chat = self._chat_patcher.start()
+        mock_response = mock.MagicMock()
+        mock_response.message.content = json.dumps(_MOCK_LEGAL_RESPONSE_JSON)
+        mock_chat.return_value = mock_response
+
+    def tearDown(self) -> None:
+        """Stop patching ollama.chat."""
+        self._chat_patcher.stop()
+
+    def _load_email(self, email_data: Dict[str, Any]) -> EmailInput:
+        """Convert JSON email data to EmailInput instance."""
+        return EmailInput(
+            from_address=EmailAddress(**email_data["from_address"]),
+            to_address=[EmailAddress(**addr) for addr in email_data["to_address"]],
+            subject=email_data["subject"],
+            body=email_data["body"],
+            received_at=datetime.fromisoformat(email_data["received_at"]),
+        )
+
+    def _get_test_case(self, name: str) -> Dict[str, Any]:
+        """Get a test case by name."""
+        for case in self.test_cases:
+            if case["name"] == name:
+                return case
+        raise ValueError(f"Test case '{name}' not found")
+
+    def test_legal_notice(self) -> None:
+        """Test parsing email with LegalNotice information."""
+        test_case = self._get_test_case("legal_notice")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "legal")
+
+        notices = [r for r in results if isinstance(r, LegalNotice)]
+        self.assertGreater(len(notices), 0, "No LegalNotice instance found")
+        self.assertIsNotNone(notices[0].title, "LegalNotice title is None")
+
+    def test_contract_review(self) -> None:
+        """Test parsing email with Contract information."""
+        test_case = self._get_test_case("contract_review")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "legal")
+
+        contracts = [r for r in results if isinstance(r, Contract)]
+        self.assertGreater(len(contracts), 0, "No Contract instance found")
+        self.assertIsNotNone(contracts[0].title, "Contract title is None")
+
+    def test_court_date(self) -> None:
+        """Test parsing email with CourtDate information."""
+        test_case = self._get_test_case("court_date")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "legal")
+
+        court_dates = [r for r in results if isinstance(r, CourtDate)]
+        self.assertGreater(len(court_dates), 0, "No CourtDate instance found")
+        self.assertIsNotNone(court_dates[0].date, "CourtDate date is None")
+
+    def test_attorney_introduction(self) -> None:
+        """Test parsing email with Attorney information."""
+        test_case = self._get_test_case("attorney_introduction")
+        email = self._load_email(test_case["email"])
+
+        results = self.parser.parse_email(email, "legal")
+
+        attorneys = [r for r in results if isinstance(r, Attorney)]
+        self.assertGreater(len(attorneys), 0, "No Attorney instance found")
+        self.assertIsNotNone(attorneys[0].name, "Attorney name is None")
 
 
 if __name__ == "__main__":
