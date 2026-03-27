@@ -1,5 +1,8 @@
 """Subpackage containing schemas and related utilities."""
 
+from b4igo_email_agent.ai_pipeline.schemas import legal_schemas  # noqa: F401
+from b4igo_email_agent.ai_pipeline.schemas import personal_schemas  # noqa: F401
+from b4igo_email_agent.ai_pipeline.schemas import schemas  # noqa: F401
 from b4igo_email_agent.ai_pipeline.schemas.legal_schemas import (
     Attorney,
     Contract,
