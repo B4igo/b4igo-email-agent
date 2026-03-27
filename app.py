@@ -2,11 +2,14 @@
 
 import json
 import logging
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+from urllib.parse import urlencode
 from uuid import uuid4
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager,
@@ -18,7 +21,9 @@ from flask_jwt_extended import (
     set_refresh_cookies,
     unset_jwt_cookies,
 )
+from requests import RequestException
 
+from b4igo_email_agent.account_manager.client import AccountManagerClient
 from b4igo_email_agent.database import db
 from b4igo_email_agent.vault.client import VaultClient
 from b4igo_email_agent.vault.utils import parse_vault_record
@@ -46,9 +51,7 @@ executor = ThreadPoolExecutor(max_workers=4)
 
 
 # AUTHENTICATION INIT
-# Initialize database with example users
-db.add_user("user", "password", "user")
-db.add_user("admin", "adminpass", "admin")
+# Initialize database with example confirmations
 db.add_confirmation("user", '{"example_key2" : "example_value2"}')
 db.add_confirmation("user", '{"example_key3" : "example_value3"}')
 db.add_confirmation("admin", '{"example_key" : "example_value"}')
@@ -60,6 +63,33 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 3600  # 1 hour
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 86400  # 1 day
 
 jwt = JWTManager(app)
+account_manager_client = AccountManagerClient()
+frontend_base_url = os.environ.get("B4IGO_FRONTEND_URL", "http://localhost:5173").rstrip("/")
+backend_base_url = os.environ.get("B4IGO_BACKEND_URL", "http://localhost:5000").rstrip("/")
+
+
+def _seed_login_users() -> None:
+    """Seed local dev login users in account manager auth storage."""
+    demo_users = [
+        (os.environ.get("B4IGO_DEMO_USERNAME", "user"), os.environ.get("B4IGO_DEMO_PASSWORD", "password"), "user"),
+        (
+            os.environ.get("B4IGO_ADMIN_USERNAME", "admin"),
+            os.environ.get("B4IGO_ADMIN_PASSWORD", "adminpass"),
+            "admin",
+        ),
+    ]
+
+    for username, password, role in demo_users:
+        try:
+            response = account_manager_client.seed_user(username=username, password=password, role=role)
+            if response.status_code >= 400:
+                logger.warning("Failed to seed login user %s via account manager", username)
+        except RequestException as exc:
+            logger.warning("Skipping login seed; account manager unavailable: %s", exc)
+            break
+
+
+_seed_login_users()
 
 
 # ROUTES
@@ -83,9 +113,16 @@ def login():
     if not username or not password:
         return jsonify({"error": "Missing username or password"}), 400
 
-    user = db.get_user(username)
-    if not user or user["password"] != password:
+    try:
+        auth_response = account_manager_client.verify_user(username, password)
+    except RequestException as exc:
+        logger.error("AccountManager auth verify failed: %s", exc)
+        return jsonify({"error": "Authentication service unavailable"}), 503
+
+    if auth_response.status_code == 401:
         return jsonify({"error": "Invalid username or password"}), 401
+    if auth_response.status_code >= 400:
+        return jsonify({"error": "Failed to authenticate"}), 502
 
     # generate tokens
     access_token = create_access_token(identity=username)
@@ -144,8 +181,16 @@ def enqueue_confirmation():
         username = data["username"]
         json_payload = data["jsonPayload"]
 
-        if not db.get_user(username):
-            return jsonify({"error": f"User '{username}' does not exist"}), 404
+        try:
+            exists_response = account_manager_client.user_exists(username)
+            exists_payload = exists_response.json()
+            if exists_response.status_code >= 400 or not exists_payload.get("exists"):
+                return jsonify({"error": f"User '{username}' does not exist"}), 404
+        except RequestException as exc:
+            logger.error("AccountManager user existence check failed: %s", exc)
+            return jsonify({"error": "Authentication service unavailable"}), 503
+        except ValueError:
+            return jsonify({"error": "Invalid response from authentication service"}), 502
 
         confirmation_id = db.add_confirmation(username, json_payload)
         if confirmation_id:
@@ -260,12 +305,12 @@ def accept_confirmation():
         if record:
             vault = VaultClient()
             vault_id = vault.create(current_user, record)
-            if vault_id is not None:
-                logger.info(
-                    "added confirmation #%s to vault as record id %s", conf_id, vault_id
-                )
-            else:
+            if vault_id is None:
                 logger.warning("vault create failed for confirmation #%s", conf_id)
+                return jsonify({"error": "Vault write failed"}), 502
+            logger.info(
+                "added confirmation #%s to vault as record id %s", conf_id, vault_id
+            )
         else:
             logger.warning(
                 "could not parse vault record from confirmation #%s", conf_id
@@ -276,6 +321,240 @@ def accept_confirmation():
 
     except Exception:
         return jsonify({"error": "Missing 'id' parameter"}), 400
+
+@app.route("/api/email-connectors", methods=["GET"])
+@jwt_required()
+def get_email_connectors():
+    """Get all email connectors for the current user."""
+    current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.list_accounts(current_user)
+        accounts = response.json()
+    except RequestException as exc:
+        logger.error("AccountManager list call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+    connectors = [
+        {
+            "id": account["id"],
+            "connector_type": account["provider"],
+            "connector_name": account.get("displayName") or account["emailAddress"],
+            "connector_email": account["emailAddress"],
+            "has_token": bool(account.get("credentials")),
+            "last_read": None,
+            "last_error_msg": None,
+        }
+        for account in accounts
+    ]
+
+    return jsonify(connectors), 200
+
+
+@app.route("/api/email-connectors/<int:connector_id>", methods=["DELETE"])
+@jwt_required()
+def remove_email_connector(connector_id):
+    """Remove an email connector by ID."""
+    current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.delete_account(current_user, connector_id)
+    except RequestException as exc:
+        logger.error("AccountManager delete call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+
+    if response.status_code == 204:
+        logger.info("Removed email connector id %s for user %s", connector_id, current_user)
+        return jsonify({"message": "Email connector removed successfully"}), 200
+    if response.status_code == 404:
+        return jsonify({"error": "Connector not found or does not belong to user"}), 404
+    return jsonify({"error": "Failed to remove connector"}), 502
+
+
+@app.route("/api/email-connectors/types", methods=["GET"])
+@jwt_required()
+def get_connector_type_options():
+    """Get list of available connector types from account manager."""
+    try:
+        response = account_manager_client.list_provider_types()
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager provider types call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/email-connectors/setup/<connector_type>", methods=["GET"])
+@jwt_required()
+def get_connector_setup(connector_type):
+    """Get setup steps for a provider and normalize callback URLs for frontend."""
+    current_user = get_jwt_identity()
+    try:
+        oauth_callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{connector_type}"
+        response = account_manager_client.get_provider_setup(
+            provider=connector_type,
+            b4igo_user_id=current_user,
+            oauth_callback_url=oauth_callback_url,
+            connector_name=request.args.get("name"),
+        )
+        if response.status_code >= 400:
+            return jsonify(response.json()), response.status_code
+
+        steps = response.json()
+        for step in steps:
+            callback = step.get("callback")
+            if isinstance(callback, str) and callback:
+                is_full_url = callback.startswith("http://") or callback.startswith(
+                    "https://"
+                )
+                if not is_full_url:
+                    step["callback"] = (
+                        f"/api/email-step-callback/{connector_type}/{callback}"
+                    )
+
+        return jsonify(steps), 200
+
+    except Exception as e:
+        logger.error("Error getting connector setup for %s: %s", connector_type, e)
+        return jsonify({"error": "Failed to get setup steps"}), 500
+
+
+@app.route("/api/email-step-callback/<provider>/<function_name>", methods=["POST"])
+@jwt_required()
+def run_email_step_callback(provider: str, function_name: str):
+    """Run one provider setup callback through account manager validation logic."""
+    payload: dict[str, Any] = request.get_json(silent=True) or {}
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        return jsonify({"error": "Validation error"}), 400
+
+    try:
+        response = account_manager_client.run_provider_step_callback(
+            provider=provider,
+            function_name=function_name,
+            steps=steps,
+        )
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager step callback call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/email-connectors/oauth/callback/<provider>", methods=["GET"])
+def provider_oauth_callback(provider: str):
+    """Handle provider OAuth callback and redirect to generic frontend callback page."""
+    frontend_callback_url = f"{frontend_base_url}/email-connectors/callback"
+
+    def _redirect_with_params(params: dict[str, str]) -> Any:
+        return redirect(f"{frontend_callback_url}?{urlencode(params)}")
+
+    try:
+        auth_code = request.args.get("code")
+        state = request.args.get("state")
+        if not auth_code or not state:
+            return _redirect_with_params({"success": "0", "error": "Missing OAuth code or state"})
+
+        callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{provider}"
+        response = account_manager_client.complete_provider_oauth(
+            provider=provider,
+            auth_code=auth_code,
+            state=state,
+            oauth_callback_url=callback_url,
+        )
+        result = response.json()
+        if response.status_code >= 400:
+            logger.warning("Provider OAuth callback failed for %s: %s", provider, result)
+            return _redirect_with_params(
+                {
+                    "success": "0",
+                    "error": str(result.get("error", "OAuth callback failed")),
+                }
+            )
+
+        connector_email = str(result.get("emailAddress", ""))
+        return _redirect_with_params(
+            {
+                "success": "1",
+                "email": connector_email,
+                "id": str(result.get("id", "")),
+            }
+        )
+    except Exception as e:
+        logger.error("Error in provider OAuth callback for %s: %s", provider, e)
+        return _redirect_with_params({"success": "0", "error": "Failed to complete authorization"})
+
+
+@app.route("/api/accounts/link", methods=["POST"])
+@jwt_required()
+def link_account():
+    """Link an email provider account for the authenticated user."""
+    data = request.get_json(silent=True) or {}
+    current_user = get_jwt_identity()
+    b4igo_user_id = data.get("b4igoUserId", current_user)
+
+    required_fields = ["provider", "emailAddress", "credentials"]
+    if any(field not in data for field in required_fields):
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Missing required fields: provider, emailAddress, credentials"
+                    )
+                }
+            ),
+            400,
+        )
+
+    try:
+        response = account_manager_client.link_account(
+            b4igo_user_id=b4igo_user_id,
+            provider=data["provider"],
+            email_address=data["emailAddress"],
+            credentials=data["credentials"],
+            display_name=data.get("displayName"),
+            config=data.get("config"),
+        )
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager link call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/accounts", methods=["GET"])
+@jwt_required()
+def list_accounts():
+    """List linked provider accounts for the authenticated user."""
+    current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.list_accounts(current_user)
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager list call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
+
+
+@app.route("/api/accounts/<int:account_id>", methods=["DELETE"])
+@jwt_required()
+def delete_account(account_id: int):
+    """Delete one linked account for the authenticated user."""
+    current_user = get_jwt_identity()
+    try:
+        response = account_manager_client.delete_account(current_user, account_id)
+        if response.content:
+            return jsonify(response.json()), response.status_code
+        return "", response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager delete call failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+    except ValueError:
+        return jsonify({"error": "Invalid response from account manager"}), 502
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from typing import Type
 from pydantic import BaseModel
 
 from ..domain_classifier import Domain
-from . import schemas
+from . import legal_schemas, personal_schemas, schemas
 
 
 class SchemaPrompter:
@@ -17,6 +17,8 @@ class SchemaPrompter:
 
     _DOMAIN_MODULES: dict[Domain, ModuleType] = {
         "health": schemas,
+        "legal": legal_schemas,
+        "personal": personal_schemas,
     }
 
     def get_domain_prompt(self, domain: Domain) -> str:

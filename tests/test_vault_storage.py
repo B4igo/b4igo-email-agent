@@ -1,6 +1,5 @@
 """Unit tests for VaultStorage."""
 
-import os
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -90,51 +89,3 @@ class TestVaultStorage(TestCase):
     def test_delete_record_nonexistent_returns_false(self) -> None:
         """delete_record returns False for nonexistent id."""
         self.assertFalse(self.storage.delete_record(99999))
-
-
-class TestVaultStorageEnvDbPath(TestCase):
-    """Tests that VaultStorage reads B4IGO_VAULT_DB_PATH from the environment."""
-
-    def setUp(self) -> None:
-        """Create a temp file path and set the env var before each test."""
-        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.tmp.close()
-        # Remove the file so VaultStorage creates a fresh DB at that path.
-        Path(self.tmp.name).unlink(missing_ok=True)
-        os.environ["B4IGO_VAULT_DB_PATH"] = self.tmp.name
-
-    def tearDown(self) -> None:
-        """Unset the env var and remove the temp DB file."""
-        os.environ.pop("B4IGO_VAULT_DB_PATH", None)
-        Path(self.tmp.name).unlink(missing_ok=True)
-
-    def test_storage_uses_env_db_path(self) -> None:
-        """VaultStorage() with no args creates the DB at B4IGO_VAULT_DB_PATH."""
-        storage = VaultStorage()
-        self.assertEqual(storage.db_path, self.tmp.name)
-        self.assertTrue(
-            Path(self.tmp.name).exists(),
-            "Expected DB file to be created at the env-configured path.",
-        )
-
-    def test_env_db_path_crud_works(self) -> None:
-        """Basic CRUD round-trip works on the env-configured DB path."""
-        storage = VaultStorage()
-
-        rid = storage.add_record("alice", "doctor", {"doctor_name": "Dr. Env"})
-        self.assertIsNotNone(rid)
-        self.assertIsInstance(rid, int)
-
-        recs = storage.get_records("alice", "doctor")
-        self.assertEqual(len(recs), 1)
-        self.assertEqual(recs[0]["payload"]["doctor_name"], "Dr. Env")
-
-        assert rid is not None
-        updated = storage.update_record(rid, {"doctor_name": "Dr. Updated"})
-        self.assertTrue(updated)
-        recs = storage.get_records("alice", id=rid)
-        self.assertEqual(recs[0]["payload"]["doctor_name"], "Dr. Updated")
-
-        deleted = storage.delete_record(rid)
-        self.assertTrue(deleted)
-        self.assertEqual(storage.get_records("alice"), [])

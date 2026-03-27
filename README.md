@@ -12,6 +12,19 @@ Install the git hooks:
    ```bash
    pre-commit install
    ```
+
+### AccountManager microservice (internal)
+Run the dedicated account manager server separately from `app.py`:
+```bash
+python3 account_manager_app.py
+```
+
+Optional environment variables:
+- `B4IGO_ACCOUNT_MANAGER_PORT` (default `5100`)
+- `B4IGO_ACCOUNT_DB_PATH` (default `email_agent.db`)
+- `B4IGO_ACCOUNT_MANAGER_TOKEN` (if set, required in header `X-Internal-Service-Token`)
+
+`app.py` calls this internal service through `B4IGO_ACCOUNT_MANAGER_URL` (default `http://127.0.0.1:5100`).
 ### Frontend
 Open the terminal in the b4igo_email_agent_frontend folder and run npm install
 to install the frontend packages (assuming that npm is already installed)

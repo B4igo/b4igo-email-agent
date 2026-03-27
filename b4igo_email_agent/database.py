@@ -32,17 +32,8 @@ class Database:
             conn.close()
 
     def _initialize_tables(self):
-        """Create users and confirmations tables."""
+        """Create the confirmations table."""
         with self._get_connection() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    username TEXT PRIMARY KEY,
-                    password TEXT NOT NULL,
-                    role TEXT NOT NULL
-                )
-            """
-            )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS confirmations (
@@ -53,46 +44,6 @@ class Database:
                 )
             """
             )
-
-    def add_user(self, username: str, password: str, role: str) -> bool:
-        """Add a new user to the database.
-
-        Args:
-            username: Unique username
-            password: User password
-            role: User role (e.g., 'user', 'admin')
-
-        Returns:
-            True if user was added, False if username already exists.
-        """
-        try:
-            with self._get_connection() as conn:
-                conn.execute(
-                    "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-                    (username, password, role),
-                )
-            return True
-        except sqlite3.IntegrityError:
-            return False
-
-    def get_user(self, username: str) -> Optional[dict]:
-        """Get user by username.
-
-        Args:
-            username: Username to look up
-
-        Returns:
-            User dict with username, password, role, or None if not found.
-        """
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT username, password, role FROM users WHERE username = ?",
-                (username,),
-            )
-            row = cursor.fetchone()
-            if row:
-                return dict(row)
-            return None
 
     def add_confirmation(self, username: str, json_payload: str) -> Optional[int]:
         """Add a new confirmation for a user.
@@ -159,7 +110,6 @@ class Database:
                 "SELECT 1 FROM confirmations WHERE id = ?", (confirmation_id,)
             )
             return cursor.fetchone() is not None
-
 
 # Global database instance
 db = Database()
