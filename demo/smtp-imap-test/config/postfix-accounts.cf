@@ -1,0 +1,5 @@
+alice@test.local|{PLAIN}password123
+bob@test.local|{PLAIN}password123
+charlie@test.local|{PLAIN}password123
+diana@test.local|{PLAIN}password123
+eve@test.local|{PLAIN}password123

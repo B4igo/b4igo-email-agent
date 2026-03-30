@@ -1,0 +1,121 @@
+SMTP/IMAP Test Server - Integration Guide
+==========================================
+
+This compose stack runs a local mail server with pre-seeded accounts
+and a webmail UI. Other containers can connect to it for sending and
+reading email over standard SMTP and IMAP.
+
+
+Starting the stack
+------------------
+
+    ./setup.sh up        # foreground
+    ./setup.sh up -d     # detached
+
+This wipes old volumes, generates accounts, and starts everything
+fresh. The seed container populates each inbox with test emails.
+
+
+Connection details
+------------------
+
+From another container on the same Docker network:
+
+    SMTP host:  mailserver
+    SMTP port:  25
+    IMAP host:  mailserver
+    IMAP port:  143
+    TLS:        off (plaintext only)
+    Auth:       PLAIN or LOGIN
+
+From the host machine:
+
+    SMTP:  localhost:1025
+    IMAP:  localhost:1143
+
+
+Test accounts
+-------------
+
+All accounts use the password: password123
+
+    alice@test.local
+    bob@test.local
+    charlie@test.local
+    diana@test.local
+    eve@test.local
+
+Accounts are defined in seed/accounts.json.
+
+
+Attaching your container
+------------------------
+
+1. Add your service to compose.yaml (or use extends/include) and
+   make sure it is on the same default network as the mailserver.
+
+   If your container lives in a separate compose file, create an
+   external network so both stacks share it:
+
+   In this project's compose.yaml, add under the top-level networks:
+
+       networks:
+         mailnet:
+           name: mailnet
+
+   And attach the mailserver to it:
+
+       services:
+         mailserver:
+           networks:
+             - default
+             - mailnet
+
+   In your other compose.yaml:
+
+       networks:
+         mailnet:
+           external: true
+
+       services:
+         your-app:
+           networks:
+             - mailnet
+           environment:
+             - SMTP_HOST=mailserver
+             - SMTP_PORT=25
+             - IMAP_HOST=mailserver
+             - IMAP_PORT=143
+
+2. Wait for the mailserver to be healthy before your app connects.
+   If your service is in the same compose file:
+
+       depends_on:
+         mailserver:
+           condition: service_healthy
+
+   If it is in a separate compose file, poll the port on startup:
+
+       while ! nc -z mailserver 25; do sleep 1; done
+
+3. Send mail via SMTP to port 25. No authentication is required for
+   sending from containers on the Docker network (PERMIT_DOCKER=network).
+
+4. Read mail via IMAP on port 143. Authenticate with the full email
+   address and password (e.g. alice@test.local / password123).
+
+
+Webmail
+-------
+
+SnappyMail is available at http://localhost:8888
+Log in with any test account listed above.
+
+
+Resetting
+---------
+
+    docker compose down -v
+
+This deletes all mail data and volumes. Run ./setup.sh up again for
+a clean slate with freshly seeded inboxes.

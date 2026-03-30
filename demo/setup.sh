@@ -10,7 +10,7 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SMTP_TEST_DIR="$SCRIPT_DIR/../../smtp-imap-test"
+SMTP_TEST_DIR="$SCRIPT_DIR/smtp-imap-test"
 ACCOUNTS_FILE="$SMTP_TEST_DIR/seed/accounts.json"
 CONFIG_DIR="$SMTP_TEST_DIR/config"
 

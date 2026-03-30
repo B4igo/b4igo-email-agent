@@ -1,0 +1,26 @@
+From: Vision Care Clinic <appointments@visioncareclinic.com>
+To: alice@test.local
+Subject: Appointment Reminder: Eye Exam on April 2, 2026
+Date: Thu, 27 Mar 2026 09:00:00 -0500
+
+Dear Alice,
+
+This is a reminder for your upcoming eye exam appointment.
+
+Appointment Details:
+- Date: Thursday, April 2, 2026
+- Time: 10:30 AM
+- Duration: 45 minutes
+- Location: Vision Care Clinic, 1242 Maple Avenue, Suite 300, Springfield, IL 62704
+- Doctor: Dr. Sarah Mitchell, OD
+
+Please remember to bring your current eyeglasses or contact lenses, and a list of any medications you are currently taking. If you have medical insurance, please bring your insurance card as well.
+
+If you need to reschedule, please call us at (555) 234-5678 or reply to this email at least 24 hours before your appointment.
+
+We look forward to seeing you!
+
+Best regards,
+Vision Care Clinic
+(555) 234-5678
+www.visioncareclinic.com

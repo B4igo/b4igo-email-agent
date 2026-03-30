@@ -51,11 +51,6 @@ executor = ThreadPoolExecutor(max_workers=4)
 
 
 # AUTHENTICATION INIT
-# Initialize database with example confirmations
-db.add_confirmation("user", '{"example_key2" : "example_value2"}')
-db.add_confirmation("user", '{"example_key3" : "example_value3"}')
-db.add_confirmation("admin", '{"example_key" : "example_value"}')
-db.add_confirmation("admin", '{"example_key1" : "example_value1"}')
 
 # set the secret key for JWT signing
 app.config["JWT_SECRET_KEY"] = str(uuid4())  # TODO: save as file on server

@@ -1,7 +1,7 @@
 # B4iGO Email Agent - Full Demo Stack
 #
 # Combines:
-#   - smtp-imap-test mail server + seeded emails + webmail
+#   - smtp-imap-test mail server + seeded emails + webmail (bundled in demo/smtp-imap-test/)
 #   - Host Ollama (expects qwen3:8b to be available via `ollama pull qwen3:8b`)
 #   - b4igo backend (Flask API)
 #   - b4igo frontend (React/Vite)
@@ -43,7 +43,7 @@ services:
     volumes:
       - maildata:/var/mail
       - mailstate:/var/mail-state
-      - ../../smtp-imap-test/config/:/tmp/docker-mailserver/
+      - ./smtp-imap-test/config/:/tmp/docker-mailserver/
     healthcheck:
       test: ["CMD-SHELL", "ss -tlnp | grep -q ':25' && ss -tlnp | grep -q ':143'"]
       interval: 5s
@@ -56,7 +56,7 @@ services:
   # Seed mailboxes with test emails
   # ──────────────────────────────────────────────
   seed:
-    build: ../../smtp-imap-test/seed
+    build: ./smtp-imap-test/seed
     container_name: mail-seed
     depends_on:
       mailserver:
@@ -71,7 +71,7 @@ services:
   # Webmail UI (SnappyMail)
   # ──────────────────────────────────────────────
   webmail:
-    build: ../../smtp-imap-test/snappymail
+    build: ./smtp-imap-test/snappymail
     container_name: webmail
     ports:
       - "8888:8888"
@@ -80,6 +80,26 @@ services:
     depends_on:
       mailserver:
         condition: service_healthy
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # B4iGO Account Manager (auth + linked accounts)
+  # ──────────────────────────────────────────────
+  account-manager:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.account-manager
+    container_name: b4igo-account-manager
+    ports:
+      - "5100:5100"
+    environment:
+      - B4IGO_ACCOUNT_MANAGER_PORT=5100
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5100/api/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
@@ -94,8 +114,11 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=development
+      - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
     depends_on:
       mailserver:
+        condition: service_healthy
+      account-manager:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')\""]
