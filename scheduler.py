@@ -6,7 +6,7 @@ import requests
 from flask import Flask, request, jsonify
 
 # API Endpoints
-aiCall = "http://localhost:5000/api/startjob" #TestCall: replace with actual call later
+aiCall = "http://localhost:5000/api/startjob" #placeholder
 accountEmailCall = "http://localhost:5100/api/pull"
 
 #Redis Connection Setup------------------------------
@@ -15,8 +15,9 @@ queue = redis.Redis(
     port=6379, 
     db=0, 
     decode_responses=True)
-queueKey = "mail_pull_queue"
-accountQueueKey = "account_registry_queue"
+MainQueue = "mail_pull_queue"
+AccountQueue = "account_registry_queue"
+DeadQueue = "dead_mail_queue"
 
 #Flask Endpoint to receive new account registries
 app = Flask(__name__)
@@ -33,7 +34,7 @@ def registerAccount():
         "b4igoUserId": data["b4igoUserId"],
         "accountId": data["accountId"]
     }
-    queue.rpush(accountQueueKey, json.dumps(account))
+    queue.sadd(AccountQueue, json.dumps(account))
 
     return jsonify ({
         "message": "Registered for polling",
@@ -46,7 +47,7 @@ def pollToQueue():
         print("Starting poll")
 
         #pull registered accounts from redis
-        accounts = queue.lrange(accountQueueKey, 0, -1)
+        accounts = queue.smembers(AccountQueue)
 
         for accountJson in accounts:
             account = json.loads(accountJson)
@@ -71,38 +72,54 @@ def pollToQueue():
                 continue
 
             for email in emails:
-                job={"user":user, "accountId": accountId, "email":email}
-                queue.rpush(queueKey,json.dumps(job))
+                job={"user":user, 
+                     "accountId": accountId, 
+                     "retry": 0,
+                     "email":{
+                         "subject": email.get("subject",""),
+                         "from": email.get("from",""),
+                         "body": email.get("body",""),
+                         "attachments": email.get("attachments", [])
+                     }
+                }
+                queue.rpush(MainQueue,json.dumps(job))
 
             print(f"{len(emails)} emails queued for {user}")
     except Exception as e:
         print("Polling error", e)
 
 def queueProcessing():
+    job = None
     try:
-        job = queue.lpop(queueKey)
+        job = queue.lpop(MainQueue)
         if not job:
             print("No jobs waiting.")
             return
         
         jobData = json.loads(job)
         
-        print(f"Proccessing job for {jobData['user']}")
+        print(f"Processing job for {jobData['user']}: ")
+        print(json.dumps(jobData, indent=2))
 
-        response = requests.post(aiCall, json = jobData, timeout=10)
+        response = requests.post(aiCall, json=jobData, timeout=10)
 
         if response.status_code == 200:
-            print("Ai processing successful")
+            print(f"Ai processing successful user:{jobData['user']} Account:{jobData['accountId']}")
         else:
-            print("Ai processing failed... requeueing")
-            queue.rpush(queueKey, job)
+            jobData["retry"] += 1
+            if jobData["retry"] >=3:
+                print("Sending to Dead queue")
+                queue.rpush(DeadQueue, json.dumps(jobData))
+            else:
+                print (f"Processing failed retrying job({jobData['retry']})")
+                queue.rpush(MainQueue, json.dumps(jobData))
 
     except Exception as e:
         print ("AI processing error", e) 
         #if a job was dequeued put it back
         if job:
-            queue.rpush(queueKey, job)
-
+            queue.rpush(MainQueue, job)
+        
 #Setup Scheduler--------------------------
 scheduler = BackgroundScheduler()
 scheduler.add_job(queueProcessing, "interval", seconds=5,)
