@@ -7,22 +7,19 @@ from numpy.typing import NDArray
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from b4igo_email_agent.mail.models import EmailInput
-
-# Email category type
 Domain = Literal["education", "health", "legal", "personal", "other"]
 
 
-class EmailClassificationResult(TypedDict):
-    """Result of email domain classification."""
+class ClassificationResult(TypedDict):
+    """Result of document domain classification."""
 
-    category: Domain
+    domain: Domain
     confidence: float
     all_scores: dict[str, float]
 
 
 class DomainClassifier:
-    """Semantic email categorizer using sentence-transformers."""
+    """Semantic document categorizer using sentence-transformers."""
 
     def __init__(self):
         """Initialize model, embeddings, and categories."""
@@ -56,7 +53,7 @@ class DomainClassifier:
                 "personal invitations, private matters"
             ),
             "other": (
-                "General correspondence, miscellaneous emails, newsletters, "
+                "General correspondence, miscellaneous content, newsletters, "
                 "notifications, automated messages, system alerts, "
                 "uncategorized content that doesn't fit specific categories"
             ),
@@ -77,39 +74,26 @@ class DomainClassifier:
             [self._category_embeddings[category] for category in self._category_list]
         )
 
-    def classify(self, emails: list[EmailInput]) -> list[EmailClassificationResult]:
-        """Classify emails into predefined categories using batch processing.
+    def __call__(self, text: str) -> ClassificationResult:
+        """Classify a document into a predefined category.
 
         Args:
-            emails (list[EmailInput]): List of emails with subject, from_address,
-                and body content.
+            text (str): Document text to classify.
 
         Returns:
-            list[EmailClassificationResult]: Results with category, confidence,
-            and all scores for each email.
+            ClassificationResult: Result with category, confidence, and all scores.
         """
-        if not emails:
-            return []
-
-        email_texts = [email.to_text() for email in emails]
-        email_embeddings = np.array(
-            self.model.encode(email_texts, convert_to_tensor=False)
+        embedding = np.array(self.model.encode(text, convert_to_tensor=False)).reshape(
+            1, -1
         )
-        similarity_matrix = cosine_similarity(email_embeddings, self._category_matrix)
-
-        results: list[EmailClassificationResult] = []
-        for scores in similarity_matrix:
-            similarities = {
-                category: float(score)
-                for category, score in zip(self._category_list, scores)
-            }
-            best_index = int(np.argmax(scores))
-            results.append(
-                EmailClassificationResult(
-                    category=self._category_list[best_index],  # type: ignore
-                    confidence=float(scores[best_index]),
-                    all_scores=similarities,
-                )
-            )
-
-        return results
+        scores = cosine_similarity(embedding, self._category_matrix)[0]
+        similarities = {
+            category: float(score)
+            for category, score in zip(self._category_list, scores)
+        }
+        best_index = int(np.argmax(scores))
+        return ClassificationResult(
+            domain=self._category_list[best_index],  # type: ignore
+            confidence=float(scores[best_index]),
+            all_scores=similarities,
+        )
