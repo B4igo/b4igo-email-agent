@@ -96,7 +96,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("single_appointment")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least one result
         self.assertGreater(len(results), 0, "No results returned from parser")
@@ -116,7 +116,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("single_doctor")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least one result
         self.assertGreater(len(results), 0, "No results returned from parser")
@@ -135,7 +135,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("appointment_and_doctor")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least two results
         self.assertGreaterEqual(len(results), 2, "Expected at least 2 results")
@@ -160,7 +160,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("medication_and_medical_history")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least two results
         self.assertGreaterEqual(len(results), 2, "Expected at least 2 results")
@@ -185,7 +185,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("complete_bill")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least one result
         self.assertGreater(len(results), 0, "No results returned from parser")
@@ -207,7 +207,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("complete_insurance")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least one result
         self.assertGreater(len(results), 0, "No results returned from parser")
@@ -229,7 +229,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("incomplete_medication")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # With incomplete data, parser may still return results or may not
         # We should NOT get a valid Medication instance with missing required field
@@ -247,7 +247,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("incomplete_appointment")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # With incomplete data, parser may still return results or may not
         # We should NOT get a valid Appointment instance with missing required field
@@ -262,7 +262,7 @@ class TestDomainParser(TestCase):
         test_case = self._get_test_case("multiple_medications")
         email = self._load_email(test_case["email"])
 
-        results = self.parser.parse_email(email, "health")
+        results = self.parser(email.to_text(), "health")
 
         # Should have at least two Medication results
         medications = [r for r in results if isinstance(r, Medication)]
@@ -385,7 +385,7 @@ class TestPersonalDomainParser(TestCase):
     def test_single_contact(self) -> None:
         """Test parsing email with a single Contact."""
         email = self._load_email(self._get_test_case("single_contact")["email"])
-        results = self.parser.parse_email(email, "personal")
+        results = self.parser(email.to_text(), "personal")
         contacts = [r for r in results if isinstance(r, Contact)]
         self.assertGreater(len(contacts), 0, "No Contact instance found")
         self.assertIsNotNone(contacts[0].name)
@@ -395,7 +395,7 @@ class TestPersonalDomainParser(TestCase):
         email = self._load_email(
             self._get_test_case("personal_event_birthday")["email"]
         )
-        results = self.parser.parse_email(email, "personal")
+        results = self.parser(email.to_text(), "personal")
         events = [r for r in results if isinstance(r, PersonalEvent)]
         self.assertGreater(len(events), 0, "No PersonalEvent instance found")
         self.assertIsNotNone(events[0].event_name)
@@ -403,7 +403,7 @@ class TestPersonalDomainParser(TestCase):
     def test_reminder_and_contact(self) -> None:
         """Test parsing email containing both a Reminder and a Contact."""
         email = self._load_email(self._get_test_case("reminder_from_friend")["email"])
-        results = self.parser.parse_email(email, "personal")
+        results = self.parser(email.to_text(), "personal")
         reminders = [r for r in results if isinstance(r, Reminder)]
         contacts = [r for r in results if isinstance(r, Contact)]
         self.assertGreater(len(reminders), 0, "No Reminder instance found")
@@ -460,7 +460,7 @@ class TestLegalDomainParser(TestCase):
     def test_contract_and_attorney(self) -> None:
         """Test parsing email with a Contract and Attorney."""
         email = self._load_email(self._get_test_case("contract_review")["email"])
-        results = self.parser.parse_email(email, "legal")
+        results = self.parser(email.to_text(), "legal")
         contracts = [r for r in results if isinstance(r, Contract)]
         attorneys = [r for r in results if isinstance(r, Attorney)]
         self.assertGreater(len(contracts), 0, "No Contract instance found")
@@ -473,7 +473,7 @@ class TestLegalDomainParser(TestCase):
         email = self._load_email(
             self._get_test_case("court_date_notification")["email"]
         )
-        results = self.parser.parse_email(email, "legal")
+        results = self.parser(email.to_text(), "legal")
         court_dates = [r for r in results if isinstance(r, CourtDate)]
         self.assertGreater(len(court_dates), 0, "No CourtDate instance found")
         self.assertIsNotNone(court_dates[0].date)
@@ -483,7 +483,7 @@ class TestLegalDomainParser(TestCase):
         email = self._load_email(
             self._get_test_case("legal_notice_cease_desist")["email"]
         )
-        results = self.parser.parse_email(email, "legal")
+        results = self.parser(email.to_text(), "legal")
         notices = [r for r in results if isinstance(r, LegalNotice)]
         self.assertGreater(len(notices), 0, "No LegalNotice instance found")
         self.assertIsNotNone(notices[0].type)
@@ -491,7 +491,7 @@ class TestLegalDomainParser(TestCase):
     def test_attorney_introduction(self) -> None:
         """Test parsing email with an Attorney introduction."""
         email = self._load_email(self._get_test_case("attorney_introduction")["email"])
-        results = self.parser.parse_email(email, "legal")
+        results = self.parser(email.to_text(), "legal")
         attorneys = [r for r in results if isinstance(r, Attorney)]
         self.assertGreater(len(attorneys), 0, "No Attorney instance found")
         self.assertIsNotNone(attorneys[0].name)

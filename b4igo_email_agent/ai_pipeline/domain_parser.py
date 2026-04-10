@@ -7,7 +7,6 @@ from typing import Optional
 from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
-import b4igo_email_agent.ai_pipeline.schemas as schemas_pkg
 from b4igo_email_agent.ai_pipeline.domain_classifier import Domain
 from b4igo_email_agent.ai_pipeline.schemas import (
     legal_schemas,
@@ -15,7 +14,6 @@ from b4igo_email_agent.ai_pipeline.schemas import (
     schemas,
 )
 from b4igo_email_agent.ai_pipeline.schemas.schema_prompter import SchemaPrompter
-from b4igo_email_agent.mail.models import EmailInput
 
 _DOMAIN_MODULES = {
     "health": schemas,
@@ -25,7 +23,7 @@ _DOMAIN_MODULES = {
 
 
 class DomainParser:
-    """Parses email for all information within a given domain."""
+    """Parses a document for all information within a given domain."""
 
     def __init__(self) -> None:
         """Initializes DomainParser."""
@@ -81,23 +79,22 @@ class DomainParser:
 
         return parsed_results
 
-    def parse_email(self, email: EmailInput, domain: Domain) -> list[BaseModel]:
-        """Parses email for all information within a given domain.
+    def __call__(self, text: str, domain: Domain) -> list[BaseModel]:
+        """Parses a document for all information within a given domain.
 
         Args:
-            email (EmailInput): The email to be parsed.
-            domain (Domain): The domain to parse the email for.
+            text (str): The document text to be parsed.
+            domain (Domain): The domain to parse the document for.
 
         Returns:
             list[BaseModel]: A list of parsed information as Schema
             instances.
         """
         schemas_prompt = self.schema_prompter.get_domain_prompt(domain)
-        text_email = email.to_text()
-        # Build messages for this call only so we do not accumulate past emails.
+        # Build messages for this call only so we do not accumulate past documents.
         messages = self.messages + [
             {"role": "user", "content": schemas_prompt},
-            {"role": "user", "content": text_email},
+            {"role": "user", "content": text},
         ]
 
         # TODO: Make model configurable

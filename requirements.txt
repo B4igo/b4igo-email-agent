@@ -1,4 +1,6 @@
+docling
 pre-commit
+flask
 flask-jwt-extended
 flask-cors
 pydantic>=2.0

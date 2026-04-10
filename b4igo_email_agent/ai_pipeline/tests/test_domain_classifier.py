@@ -50,16 +50,16 @@ class TestDomainClassifier(TestCase):
 
     def test_classify_returns_results_for_each_email(self) -> None:
         """Ensure each input email returns a result."""
-        results = self.classifier.classify(self.emails)
+        results = [self.classifier(email.to_text()) for email in self.emails]
 
         self.assertEqual(len(results), len(self.emails))
 
     def test_classify_scores_are_well_formed(self) -> None:
         """Validate scores include all categories and a max confidence."""
-        results = self.classifier.classify(self.emails)
+        results = [self.classifier(email.to_text()) for email in self.emails]
 
         for result in results:
-            self.assertIn(result["category"], self.classifier._category_list)
+            self.assertIn(result["domain"], self.classifier._category_list)
             self.assertIsInstance(result["confidence"], float)
             self.assertEqual(
                 set(result["all_scores"]),
@@ -70,9 +70,11 @@ class TestDomainClassifier(TestCase):
                 max(result["all_scores"].values()),
             )
 
-    def test_classify_empty_list_returns_empty(self) -> None:
-        """Ensure empty inputs return empty results."""
-        self.assertEqual(self.classifier.classify([]), [])
+    def test_classify_empty_string_returns_result(self) -> None:
+        """Ensure empty text still returns a classification result."""
+        result = self.classifier("")
+        self.assertIn(result["domain"], self.classifier._category_list)
+        self.assertIsInstance(result["confidence"], float)
 
 
 if __name__ == "__main__":
