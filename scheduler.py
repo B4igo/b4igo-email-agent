@@ -4,9 +4,11 @@ import json
 import time
 import requests  
 from flask import Flask, request, jsonify
+from io import BytesIO
 
 # API Endpoints
-aiCall = "http://localhost:5000/api/startjob" #placeholder
+aiCallText = "http://localhost:5300/api/ai/text"
+aiCallAttachments = "http://localhost:5300/api/ai/text-with-attachments"
 accountEmailCall = "http://localhost:5100/api/pull"
 
 #Redis Connection Setup------------------------------
@@ -38,7 +40,7 @@ def registerAccount():
 
     return jsonify ({
         "message": "Registered for polling",
-        "account": account
+        "account": account 
     }),201
 
 #Schedule Processing---------------------------
@@ -101,9 +103,39 @@ def queueProcessing():
         print(f"Processing job for {jobData['user']}: ")
         print(json.dumps(jobData, indent=2))
 
-        response = requests.post(aiCall, json=jobData, timeout=10)
+        email = jobData.get("email", {})
+        text = f""" 
+        From: {email.get('from','')}
+        Subject: {email.get('subject','')}
 
-        if response.status_code == 200:
+        {email.get('body','')}
+        """
+        attachments = email.get("attachments") or []
+
+        normalized_files = []
+        for i, att in enumerate(attachments):
+            if isinstance(att, dict):
+                filename = att.get("filename", f"attachment_{i}.txt")
+                content = att.get("content", "")
+            else:
+                filename = f"attachment_{i}.txt"
+                content = str(att)
+            normalized_files.append((
+                "files", (filename, BytesIO(content.encode()))
+                ))
+
+        if not normalized_files:
+            response = requests.post(
+                aiCallText, json={"text":text}, timeout=10)
+        else:
+            response = requests.post(
+                aiCallAttachments, 
+                data={"text":text},
+                files=normalized_files, 
+                timeout=10
+                )
+            
+        if response.status_code in (200,201,202):
             print(f"Ai processing successful user:{jobData['user']} Account:{jobData['accountId']}")
         else:
             jobData["retry"] += 1
