@@ -180,10 +180,12 @@ def run_provider_step_callback(provider: str, function_name: str):
 
     payload: dict[str, Any] = request.get_json(silent=True) or {}
     steps = payload.get("steps")
+    b4igo_user_id = payload.get("b4igoUserId")
+
     if not isinstance(steps, list):
         return jsonify({"error": "Validation error"}), 400
 
-    result = service.run_provider_setup_callback(provider, function_name, steps)
+    result = service.run_provider_setup_callback(provider, function_name, steps, b4igo_user_id)
     status = 200 if result.get("success") else 400
     return jsonify(result), status
 

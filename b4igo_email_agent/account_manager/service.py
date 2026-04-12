@@ -1,11 +1,11 @@
 """Application service for linked account management and provider pulls."""
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .models import EmailSetupStep, ProviderType
 from .providers import EmailProvider, GmailProvider, ImapProvider
 from .storage import AccountStorage
-
 
 class AccountManagerService:
     """Service that orchestrates account storage and provider pulls."""
@@ -135,6 +135,7 @@ class AccountManagerService:
         provider: str,
         function_name: str,
         steps_payload: list[dict[str, Any]],
+        b4igo_user_id: str,
     ) -> dict[str, Any]:
         """Validate setup steps by count/type and dispatch provider callback."""
         provider_adapter = self.providers.get(provider)
@@ -163,7 +164,7 @@ class AccountManagerService:
             )
 
         try:
-            message = provider_adapter.CallFunction(function_name, validated_steps)
+            message = provider_adapter.CallFunction(function_name, validated_steps, b4igo_user_id, self.storage)
         except Exception:
             return {"success": False, "message": "Validation error"}
 
@@ -284,7 +285,9 @@ class AccountManagerService:
                 continue
 
             try:
+                last_pull = datetime.now(timezone.utc)
                 emails.extend(provider.pull(account))
+                self.storage.update_last_read(account.id, last_pull)
             except Exception as exc:
                 errors.append(
                     {

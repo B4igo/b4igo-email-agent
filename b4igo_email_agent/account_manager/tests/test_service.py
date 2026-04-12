@@ -27,7 +27,7 @@ class _FakeProvider(EmailProvider):
     def GetSetup(self):
         return []
 
-    def CallFunction(self, function_name, steps):
+    def CallFunction(self, function_name, steps, account_id, storage):
         _ = function_name
         _ = steps
         return ""
@@ -43,7 +43,7 @@ class _FailingProvider(EmailProvider):
     def GetSetup(self):
         return []
 
-    def CallFunction(self, function_name, steps):
+    def CallFunction(self, function_name, steps, account_id, storage):
         _ = function_name
         _ = steps
         return ""

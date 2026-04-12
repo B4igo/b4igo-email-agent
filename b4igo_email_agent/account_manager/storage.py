@@ -62,6 +62,7 @@ class AccountStorage:
                     display_name TEXT,
                     credentials_json TEXT NOT NULL,
                     config_json TEXT NOT NULL,
+                    last_read TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE (b4igo_user_id, provider, email_address)
@@ -304,6 +305,16 @@ class AccountStorage:
             )
             return cursor.rowcount > 0
 
+    def update_last_read(self, account_id: int, last_read: datetime) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE linked_email_accounts
+                SET last_read = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (last_read.astimezone(timezone.utc).isoformat(), account_id),
+            )
 
 def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
     """Convert sqlite row into LinkedAccount."""
@@ -328,6 +339,7 @@ def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
         display_name=row["display_name"],
         credentials=credentials,
         config=config,
+        last_read=row["last_read"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
