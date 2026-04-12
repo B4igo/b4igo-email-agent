@@ -386,27 +386,15 @@ def get_connector_setup(connector_type):
     """Get setup steps for a provider and normalize callback URLs for frontend."""
     current_user = get_jwt_identity()
     try:
-        oauth_callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{connector_type}"
         response = account_manager_client.get_provider_setup(
             provider=connector_type,
             b4igo_user_id=current_user,
-            oauth_callback_url=oauth_callback_url,
             connector_name=request.args.get("name"),
         )
         if response.status_code >= 400:
             return jsonify(response.json()), response.status_code
 
         steps = response.json()
-        for step in steps:
-            callback = step.get("callback")
-            if isinstance(callback, str) and callback:
-                is_full_url = callback.startswith("http://") or callback.startswith(
-                    "https://"
-                )
-                if not is_full_url:
-                    step["callback"] = (
-                        f"/api/email-step-callback/{connector_type}/{callback}"
-                    )
 
         return jsonify(steps), 200
 
@@ -415,10 +403,27 @@ def get_connector_setup(connector_type):
         return jsonify({"error": "Failed to get setup steps"}), 500
 
 
+@app.route("/api/email-connectors/status/<state_id>", methods=["GET"])
+@jwt_required()
+def get_email_connector_status(state_id: str):
+    """Proxy the OAuth status check to the account manager."""
+    try:
+        response = account_manager_client.session.get(
+            f"{account_manager_client.base_url}/api/providers/status/{state_id}",
+            headers=account_manager_client._auth_headers(),
+            timeout=10,
+        )
+        return jsonify(response.json()), response.status_code
+    except RequestException as exc:
+        logger.error("AccountManager status poll failed: %s", exc)
+        return jsonify({"error": "Account manager service unavailable"}), 503
+
 @app.route("/api/email-step-callback/<provider>/<function_name>", methods=["POST"])
 @jwt_required()
 def run_email_step_callback(provider: str, function_name: str):
     """Run one provider setup callback through account manager validation logic."""
+    current_user = get_jwt_identity()
+
     payload: dict[str, Any] = request.get_json(silent=True) or {}
     steps = payload.get("steps")
     if not isinstance(steps, list):
@@ -429,6 +434,7 @@ def run_email_step_callback(provider: str, function_name: str):
             provider=provider,
             function_name=function_name,
             steps=steps,
+            b4igo_user_id=current_user,
         )
         return jsonify(response.json()), response.status_code
     except RequestException as exc:
@@ -436,7 +442,6 @@ def run_email_step_callback(provider: str, function_name: str):
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
-
 
 @app.route("/api/email-connectors/oauth/callback/<provider>", methods=["GET"])
 def provider_oauth_callback(provider: str):

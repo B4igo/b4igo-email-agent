@@ -1,21 +1,14 @@
 ﻿import {emailConnectors} from "../API/EmailConnectors.ts";
+import type {EmailSetupStep} from "../Domain/EmailConnector.ts";
 
 export class EmailConnectorFlow {
-    static async startProviderSetup(provider: string, connectorName?: string): Promise<void> {
+    static async startProviderSetup(provider: string, connectorName?: string): Promise<EmailSetupStep[]> {
         console.log('Starting provider setup flow...', provider);
 
         const steps = await emailConnectors.getSetupSteps(provider, connectorName);
         console.log('Setup steps received:', steps);
 
-        const redirectStep = steps.find(step => step.type === 'redirect');
-
-        if (!redirectStep || !redirectStep.value) {
-            throw new Error('No redirect step found for provider setup');
-        }
-
-        console.log('Redirecting to:', redirectStep.value);
-
-        window.location.href = redirectStep.value;
+        return steps;
     }
 
     static async handleProviderCallback(): Promise<{ success: boolean; email?: string; error?: string }> {

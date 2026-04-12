@@ -50,6 +50,7 @@ class EmailSetupStep:
     type: SetupType
     value: str | None = None
     callback: str | None = None
+    polling_id: str | None = None
 
 
 @dataclass
@@ -61,6 +62,7 @@ class GmailOAuthSession:
     code_verifier: str
     connector_name: str | None
     created_at: str
+    status: str
 
 def _redact_credentials(credentials: dict[str, Any]) -> dict[str, Any]:
     """Redact credential keys that likely contain secrets."""

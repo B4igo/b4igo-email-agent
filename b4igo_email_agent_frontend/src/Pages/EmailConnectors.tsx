@@ -16,9 +16,10 @@ import {
 } from '@mui/material';
 import type {EmailConnector} from "../Domain/EmailConnector.ts";
 import {emailConnectors} from "../API/EmailConnectors.ts";
-import {EmailConnectorFlow} from "../Functions/EmailConnectorFlow.ts";
+import {useNavigate} from "react-router-dom";
 
 export function EmailConnectorsPage() {
+    const navigate = useNavigate();
     const [connectors, setConnectors] = useState<EmailConnector[]>([]);
     const [providerTypes, setProviderTypes] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -27,6 +28,10 @@ export function EmailConnectorsPage() {
     useEffect(() => {
         loadConnectors();
     }, []);
+
+    const isAddButtonDisabled = (): boolean => {
+        return connectorName.trim() === '' || isDuplicateName(connectorName.trim());
+    };
 
     const loadConnectors = async () => {
         try {
@@ -47,16 +52,16 @@ export function EmailConnectorsPage() {
         return connectors.some(c => c.connector_name.toLowerCase() === name.toLowerCase());
     };
 
-    const isAddButtonDisabled = (): boolean => {
-        return connectorName.trim() === '' || isDuplicateName(connectorName.trim());
-    };
-
-    const handleAddProvider = async (provider: string) => {
-        try {
-            await EmailConnectorFlow.startProviderSetup(provider, connectorName.trim());
-        } catch (error) {
-            console.error('Failed to start connector setup:', error);
+    const handleAddProvider = (provider: string) => {
+        if (connectorName.trim() === '') {
+            alert('Please provide a name for this connector first.');
+            return;
         }
+        if (isDuplicateName(connectorName.trim())) {
+            alert('A connector with this name already exists.');
+            return;
+        }
+        navigate(`/providers/setup/${provider}?name=${encodeURIComponent(connectorName.trim())}`);
     };
 
     const handleRemove = async (id: number) => {
@@ -161,7 +166,8 @@ export function EmailConnectorsPage() {
                                         color="primary"
                                         onClick={() => handleAddProvider(providerType)}
                                         size="large"
-                                        disabled={isAddButtonDisabled()}>
+                                        disabled={isAddButtonDisabled()}
+                                    >
                                         Add {providerType}
                                     </Button>
                                 ))}

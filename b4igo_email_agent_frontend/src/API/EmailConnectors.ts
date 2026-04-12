@@ -22,6 +22,11 @@ export const emailConnectors = {
         return data;
     },
 
+    async getSetupStatus(pollingId: string): Promise<{ status: string }> {
+        const { data } = await api.get<{ status: string }>(`/email-connectors/status/${pollingId}`);
+        return data;
+    },
+
     async remove(connectorId: number): Promise<void> {
         await api.delete(`/email-connectors/${connectorId}`);
     },

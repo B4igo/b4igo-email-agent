@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir flask pydantic[email] requests \
 # Copy application code
 COPY b4igo_email_agent/ b4igo_email_agent/
 COPY account_manager_app.py .
+COPY client_secrets.json .
 
 EXPOSE 5100
 

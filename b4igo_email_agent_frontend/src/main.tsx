@@ -8,6 +8,7 @@ import Logout from "./Pages/Logout.tsx";
 import NavBar from "./Components/NavBar.tsx";
 import {EmailConnectorsPage} from "./Pages/EmailConnectors.tsx";
 import {ProviderCallbackPage} from "./Pages/Callback.tsx";
+import {SetupConnectorPage} from "./Pages/SetupConnector.tsx";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
@@ -30,6 +31,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                         <Route path="/email-connectors/callback" element={<ProviderCallbackPage/>} />
                                         <Route path="/email-connectors" element={<EmailConnectorsPage/>} />
                                         <Route path="/logout" element={<Logout />} />
+                                        <Route path="/providers" element={<EmailConnectorsPage/>} />
+                                        <Route path="/providers/setup/:providerType" element={<SetupConnectorPage/>} />
                                         <Route path="*" element={<Navigate to="/" replace />} />
                                     </Routes>
                                 </NavBar>

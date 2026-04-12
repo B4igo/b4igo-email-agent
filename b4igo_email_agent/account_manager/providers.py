@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from . import AccountStorage
+from .storage import AccountStorage
 from .models import EmailSetupStep, LinkedAccount
 from datetime import datetime, timedelta, timezone
 import base64
@@ -31,12 +31,19 @@ class EmailProvider(ABC):
         """
 
     @abstractmethod
-    def GetSetup(self) -> list[EmailSetupStep]:
+    def GetSetup(self, **kwargs: Any) -> list[EmailSetupStep]:
         """Return generic setup steps for this provider."""
 
     @abstractmethod
     def CallFunction(self, function_name: str, steps: list[EmailSetupStep], account_id: str, storage: AccountStorage) -> str:
         """Handle provider-specific setup callback hooks."""
+
+    def HandleCallback(self, request_args: dict[str, Any], storage: AccountStorage) -> str:
+        """Handle OAuth callback or similar external provider redirect hooks.
+        
+        By default, does nothing and raises NotImplementedError.
+        """
+        raise NotImplementedError
 
 
 class ImapProvider(EmailProvider):
@@ -119,7 +126,7 @@ class ImapProvider(EmailProvider):
             except Exception:
                 pass
 
-    def GetSetup(self) -> list[EmailSetupStep]:
+    def GetSetup(self, **kwargs: Any) -> list[EmailSetupStep]:
         return [
             EmailSetupStep(
                 title="Email address",
@@ -291,88 +298,142 @@ class GmailProvider(EmailProvider):
 
         return out
 
-    def GetSetup(self) -> list[EmailSetupStep]:
+    def GetSetup(self, **kwargs: Any) -> list[EmailSetupStep]:
         """Describe one redirect step for Gmail OAuth linking."""
-        return [
-            EmailSetupStep(
-                title="Continue to Gmail login and authorization",
-                desc="You will be redirected to Google to grant read access to B4iGO.",
-                type="redirect",
-                callback="start_oauth",
-            )
-        ]
+        account_id = kwargs.get("account_id")
+        storage: AccountStorage = kwargs.get("storage")
+        client_secrets_file = kwargs.get("client_secrets_file", "client_secrets.json")
+        redirect_uri = kwargs.get("redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback")
+        connector_name = kwargs.get("connector_name")
 
-    def CallFunction(self, function_name: str, steps: list[EmailSetupStep], account_id: str, storage: AccountStorage) -> str:
-        """Validate supported callback hooks for generic setup orchestration."""
-        if function_name == "start_oauth":
-            return ""
-        raise ValueError(f"Unknown function name: {function_name}")
+        if not account_id or not storage:
+            raise ValueError("account_id and storage are required for Gmail setup")
 
-    def get_authorization_url(
-        self,
-        client_secrets_file: str,
-        redirect_uri: str,
-    ) -> tuple[str, str, str]:
-        """Create Gmail OAuth URL and return URL/state/PKCE verifier."""
+        # Cleanup old sessions (older than 1 hour)
+        with storage._get_connection() as conn:
+            conn.execute("DELETE FROM gmail_oauth_sessions WHERE created_at < datetime('now', '-1 hour')")
+
+        # Generate URL and state
         from google_auth_oauthlib.flow import Flow
-
         flow = Flow.from_client_secrets_file(
             client_secrets_file,
             scopes=["https://www.googleapis.com/auth/gmail.readonly"],
             redirect_uri=redirect_uri,
         )
-
         authorization_url, state = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
             prompt="consent",
         )
-        return authorization_url, state, flow.code_verifier
 
-    def exchange_code(
-        self,
-        auth_code: str,
-        client_secrets_file: str,
-        redirect_uri: str,
-        state: str,
-        code_verifier: str,
-    ) -> dict[str, Any]:
-        """Exchange OAuth code for a serializable Gmail credential payload."""
-        from google_auth_oauthlib.flow import Flow
-
-        flow = Flow.from_client_secrets_file(
-            client_secrets_file,
-            scopes=["https://www.googleapis.com/auth/gmail.readonly"],
-            redirect_uri=redirect_uri,
+        storage.save_gmail_oauth_session(
             state=state,
-        )
-        flow.code_verifier = code_verifier
-        flow.fetch_token(code=auth_code)
-        creds = flow.credentials
-
-        return {
-            "token": creds.token,
-            "refresh_token": creds.refresh_token,
-            "token_uri": creds.token_uri,
-            "client_id": creds.client_id,
-            "client_secret": creds.client_secret,
-            "scopes": creds.scopes,
-        }
-
-    def get_user_email(self, credentials: dict[str, Any]) -> str:
-        """Resolve Gmail account email address from OAuth credentials."""
-        from google.oauth2.credentials import Credentials
-        from googleapiclient.discovery import build
-
-        creds = Credentials(
-            token=credentials.get("token"),
-            refresh_token=credentials.get("refresh_token"),
-            token_uri=credentials.get("token_uri"),
-            client_id=credentials.get("client_id"),
-            client_secret=credentials.get("client_secret"),
-            scopes=credentials.get("scopes"),
+            b4igo_user_id=account_id,
+            code_verifier=flow.code_verifier,
+            connector_name=connector_name,
+            status="pending"
         )
 
-        service = build("gmail", "v1", credentials=creds)
-        profile = service.users().getProfile(userId="me").execute()
-        return str(profile["emailAddress"])
+        return [
+            EmailSetupStep(
+                title="Continue to Gmail login and authorization",
+                desc="You will be redirected to Google to grant read access to B4iGO.",
+                type="redirect",
+                value=authorization_url,
+                callback=state,
+                polling_id=state,
+            )
+        ]
+
+    def CallFunction(self, function_name: str, steps: list[EmailSetupStep], account_id: str, storage: AccountStorage) -> str:
+        """Validate supported callback hooks for generic setup orchestration."""
+        raise ValueError(f"Unknown function name: {function_name}")
+
+    def HandleCallback(self, request_args: dict[str, Any], storage: AccountStorage) -> str:
+        """Handle OAuth callback from Google."""
+        state = request_args.get("state")
+        auth_code = request_args.get("code")
+        client_secrets_file = request_args.get("client_secrets_file", "client_secrets.json")
+        redirect_uri = request_args.get("redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback")
+
+        if not state or not auth_code:
+            if state:
+                storage.update_gmail_oauth_session_status(state, "error")
+            return "Missing state or code in callback"
+
+        session = storage.pop_gmail_oauth_session(state)
+        if session is None:
+            return "OAuth session not found or timed out"
+
+        try:
+            from google_auth_oauthlib.flow import Flow
+            flow = Flow.from_client_secrets_file(
+                client_secrets_file,
+                scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+                redirect_uri=redirect_uri,
+                state=state,
+            )
+            flow.code_verifier = session.code_verifier
+            flow.fetch_token(code=auth_code)
+            
+            creds_data = flow.credentials
+            credentials = {
+                "token": creds_data.token,
+                "refresh_token": creds_data.refresh_token,
+                "token_uri": creds_data.token_uri,
+                "client_id": creds_data.client_id,
+                "client_secret": creds_data.client_secret,
+                "scopes": creds_data.scopes,
+            }
+
+            # Resolve email address
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+            creds = Credentials(
+                token=credentials.get("token"),
+                refresh_token=credentials.get("refresh_token"),
+                token_uri=credentials.get("token_uri"),
+                client_id=credentials.get("client_id"),
+                client_secret=credentials.get("client_secret"),
+                scopes=credentials.get("scopes"),
+            )
+            service = build("gmail", "v1", credentials=creds)
+            profile = service.users().getProfile(userId="me").execute()
+            email_address = str(profile["emailAddress"])
+
+            account = storage.upsert_account(
+                b4igo_user_id=session.b4igo_user_id,
+                provider="gmail",
+                email_address=email_address,
+                credentials=credentials,
+                display_name=session.connector_name or email_address,
+            )
+
+            if account:
+                storage.save_gmail_oauth_session(
+                    state=state,
+                    b4igo_user_id=session.b4igo_user_id,
+                    code_verifier=session.code_verifier,
+                    connector_name=session.connector_name,
+                    status="success"
+                )
+                return ""
+            else:
+                storage.save_gmail_oauth_session(
+                    state=state,
+                    b4igo_user_id=session.b4igo_user_id,
+                    code_verifier=session.code_verifier,
+                    connector_name=session.connector_name,
+                    status="error"
+                )
+                return "Failed to upsert Gmail account"
+
+        except Exception as exc:
+            storage.save_gmail_oauth_session(
+                state=state,
+                b4igo_user_id=session.b4igo_user_id,
+                code_verifier=session.code_verifier,
+                connector_name=session.connector_name,
+                status="error"
+            )
+            return f"OAuth exchange failed: {exc}"

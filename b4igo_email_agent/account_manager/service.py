@@ -84,57 +84,56 @@ class AccountManagerService:
         self,
         provider: str,
         b4igo_user_id: str,
-        oauth_callback_url: str,
-        client_secrets_file: str,
         connector_name: Optional[str] = None,
+        oauth_callback_url: Optional[str] = None,
+        client_secrets_file: str = "client_secrets.json",
     ) -> Optional[list[dict[str, Any]]]:
-        """Return setup steps for provider, filling OAuth redirect URLs when needed."""
-        provider_adapter = self.providers.get(provider)
-        if provider_adapter is None:
+        """Return setup flow required for a provider.
+
+        Args:
+            provider: Provider name (e.g. 'gmail').
+            b4igo_user_id: B4iGO user identifier.
+            connector_name: Optional label for the account.
+            oauth_callback_url: Deprecated. Now unused. Setup will use default backend redirect.
+            client_secrets_file: Path to client secrets.
+
+        Returns:
+            List of step dictionaries, or None if unsupported provider.
+        """
+        adapter = self.providers.get(provider)
+        if adapter is None:
             return None
 
-        setup_steps = provider_adapter.GetSetup()
-        resolved_steps: list[EmailSetupStep] = []
-        for step in setup_steps:
-            resolved = EmailSetupStep(
-                title=step.title,
-                desc=step.desc,
-                type=step.type,
-                value=step.value,
-                callback=step.callback,
-            )
+        # Build backend redirect URL automatically
+        # Fallback to localhost if not configured, though standard is 127.0.0.1:5100
+        redirect_uri = f"http://127.0.0.1:5100/api/providers/{provider}/oauth/callback"
 
-            # OAuth setup is backend-only and uses a full callback URL.
-            if (
-                provider == "gmail"
-                and isinstance(provider_adapter, GmailProvider)
-                and resolved.type == "redirect"
-                and resolved.callback == "start_oauth"
-            ):
-                authorization_url, state, code_verifier = (
-                    provider_adapter.get_authorization_url(
-                        client_secrets_file=client_secrets_file,
-                        redirect_uri=oauth_callback_url,
-                    )
-                )
-                self.storage.save_gmail_oauth_session(
-                    state=state,
-                    b4igo_user_id=b4igo_user_id,
-                    code_verifier=code_verifier,
-                    connector_name=connector_name,
-                )
-                resolved.value = authorization_url
-                resolved.callback = oauth_callback_url
-
-            resolved_steps.append(resolved)
-
-        return [step.__dict__ for step in resolved_steps]
+        steps = adapter.GetSetup(
+            account_id=b4igo_user_id,
+            storage=self.storage,
+            client_secrets_file=client_secrets_file,
+            redirect_uri=redirect_uri,
+            connector_name=connector_name,
+        )
+        
+        return [
+            {
+                "title": s.title,
+                "desc": s.desc,
+                "type": s.type,
+                "value": s.value,
+                "callback": s.callback,
+                "polling_id": s.polling_id,
+            }
+            for s in steps
+            if s.type in ("redirect", "boolean", "input", "password")
+        ]
 
     def run_provider_setup_callback(
         self,
         provider: str,
         function_name: str,
-        steps_payload: list[dict[str, Any]],
+        steps: list[dict[str, Any]],
         b4igo_user_id: str,
     ) -> dict[str, Any]:
         """Validate setup steps by count/type and dispatch provider callback."""
@@ -143,12 +142,12 @@ class AccountManagerService:
             return {"success": False, "message": "Unsupported provider"}
 
         expected_steps = provider_adapter.GetSetup()
-        if len(steps_payload) != len(expected_steps):
+        if len(steps) != len(expected_steps):
             return {"success": False, "message": "Validation error"}
 
         validated_steps: list[EmailSetupStep] = []
         for index, expected in enumerate(expected_steps):
-            raw = steps_payload[index]
+            raw = steps[index]
             if not isinstance(raw, dict) or raw.get("type") != expected.type:
                 return {"success": False, "message": "Validation error"}
 
@@ -165,101 +164,43 @@ class AccountManagerService:
 
         try:
             message = provider_adapter.CallFunction(function_name, validated_steps, b4igo_user_id, self.storage)
-        except Exception:
-            return {"success": False, "message": "Validation error"}
+        except Exception as e:
+            return {"success": False, "message": f"Error: {str(e)}"}
+
 
         if message:
             return {"success": False, "message": message}
         return {"success": True, "message": "ok"}
 
-    def start_gmail_oauth(
-        self,
-        b4igo_user_id: str,
-        client_secrets_file: str,
-        redirect_uri: str,
-        connector_name: Optional[str] = None,
-    ) -> dict[str, Any]:
-        """Create Gmail OAuth URL and persist callback state context."""
-        provider = self.providers.get("gmail")
-        if not isinstance(provider, GmailProvider):
-            raise ValueError("Gmail provider is not registered")
-
-        authorization_url, state, code_verifier = provider.get_authorization_url(
-            client_secrets_file=client_secrets_file,
-            redirect_uri=redirect_uri,
-        )
-        self.storage.save_gmail_oauth_session(
-            state=state,
-            b4igo_user_id=b4igo_user_id,
-            code_verifier=code_verifier,
-            connector_name=connector_name,
-        )
-        return {
-            "authorizationUrl": authorization_url,
-            "state": state,
-        }
-
-    def complete_gmail_oauth(
-        self,
-        auth_code: str,
-        state: str,
-        client_secrets_file: str,
-        redirect_uri: str,
-    ) -> Optional[dict[str, Any]]:
-        """Complete Gmail OAuth callback and upsert linked account."""
-        provider = self.providers.get("gmail")
-        if not isinstance(provider, GmailProvider):
-            raise ValueError("Gmail provider is not registered")
-
-        session = self.storage.pop_gmail_oauth_session(state)
-        if session is None:
-            return None
-
-        credentials = provider.exchange_code(
-            auth_code=auth_code,
-            client_secrets_file=client_secrets_file,
-            redirect_uri=redirect_uri,
-            state=state,
-            code_verifier=session.code_verifier,
-        )
-        email_address = provider.get_user_email(credentials)
-
-        account = self.storage.upsert_account(
-            b4igo_user_id=session.b4igo_user_id,
-            provider="gmail",
-            email_address=email_address,
-            credentials=credentials,
-            display_name=session.connector_name,
-            config=None,
-        )
-        if account is None:
-            return None
-        return account.to_public_dict()
-
-    def complete_provider_oauth(
+    def handle_oauth_callback(
         self,
         provider: str,
-        auth_code: str,
-        state: str,
-        client_secrets_file: str,
-        redirect_uri: str,
-    ) -> Optional[dict[str, Any]]:
-        """Complete OAuth callback for provider types that support backend OAuth."""
-        if provider == "gmail":
-            return self.complete_gmail_oauth(
-                auth_code=auth_code,
-                state=state,
-                client_secrets_file=client_secrets_file,
-                redirect_uri=redirect_uri,
-            )
-        return None
+        request_args: dict[str, Any],
+        client_secrets_file: str = "client_secrets.json",
+    ) -> str:
+        """Pass OAuth callback to the correct provider.
+        
+        Args:
+            provider: The provider name.
+            request_args: HTTP query parameters from the redirect.
+            client_secrets_file: Path to client_secrets.json.
+        """
+        adapter = self.providers.get(provider)
+        if adapter is None:
+            return "Unsupported provider"
+            
+        # Build backend redirect URL automatically
+        redirect_uri = f"http://127.0.0.1:5100/api/providers/{provider}/oauth/callback"
 
-    def pull(
-        self,
-        b4igo_user_id: str,
-        account_ids: Optional[list[int]] = None,
-    ) -> dict[str, Any]:
-        """Pull emails across linked providers for a given user.
+        # inject config for provider
+        args = dict(request_args)
+        args["client_secrets_file"] = client_secrets_file
+        args["redirect_uri"] = redirect_uri
+        
+        return adapter.HandleCallback(args, self.storage)
+
+    def pull(self, b4igo_user_id: str, account_ids: list[int] = []) -> dict[str, Any]:
+        """Pull new emails for valid linked accounts.
 
         Args:
             b4igo_user_id: B4iGO user identifier.

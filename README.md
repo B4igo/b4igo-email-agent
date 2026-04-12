@@ -25,6 +25,7 @@ Optional environment variables:
 - `B4IGO_ACCOUNT_MANAGER_TOKEN` (if set, required in header `X-Internal-Service-Token`)
 
 `app.py` calls this internal service through `B4IGO_ACCOUNT_MANAGER_URL` (default `http://127.0.0.1:5100`).
+
 ### Frontend
 Open the terminal in the b4igo_email_agent_frontend folder and run npm install
 to install the frontend packages (assuming that npm is already installed)
@@ -36,6 +37,17 @@ Then use npm run dev to run the frontend:
 ```bash
    npm run dev
 ```
+
+To run the frontend as an extension:
+1. Open a terminal in `b4igo_email_agent_frontend` and build the app:
+   ```bash
+   npm run build
+   ```
+2. Open your Chromium-based browser (Chrome, Edge, etc.) and go to `chrome://extensions/` (or `edge://extensions/`). 
+3. Turn on Developer mode in the top right corner. 
+4. Click Load unpacked. 
+5. Select the `b4igo_email_agent_frontend/dist` folder.
+
 
 ## Using commit hooks
 

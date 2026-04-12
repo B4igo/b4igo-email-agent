@@ -9,9 +9,10 @@
 }
 
 export interface EmailSetupStep {
-    type: 'redirect' | 'boolean' | 'input' | 'password';
     title: string;
     desc: string;
-    callback?: string;
+    type: 'redirect' | 'boolean' | 'input' | 'password';
     value?: string;
+    callback?: string;
+    polling_id?: string;
 }
