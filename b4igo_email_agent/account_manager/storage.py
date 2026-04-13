@@ -5,6 +5,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from typing import Any, Optional
+from datetime import datetime, timezone
 
 from .models import GmailOAuthSession, LinkedAccount, ProviderType
 
@@ -62,6 +63,7 @@ class AccountStorage:
                     display_name TEXT,
                     credentials_json TEXT NOT NULL,
                     config_json TEXT NOT NULL,
+                    last_read TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE (b4igo_user_id, provider, email_address)
@@ -79,7 +81,8 @@ class AccountStorage:
                     b4igo_user_id TEXT NOT NULL,
                     code_verifier TEXT NOT NULL,
                     connector_name TEXT,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT NOT NULL DEFAULT 'pending'
                 )
                 """
             )
@@ -148,16 +151,17 @@ class AccountStorage:
         b4igo_user_id: str,
         code_verifier: str,
         connector_name: Optional[str] = None,
+        status: str = "pending",
     ) -> None:
         """Persist Gmail OAuth state and PKCE verifier for callback completion."""
         with self._get_connection() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO gmail_oauth_sessions
-                (state, b4igo_user_id, code_verifier, connector_name)
-                VALUES (?, ?, ?, ?)
+                (state, b4igo_user_id, code_verifier, connector_name, status)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (state, b4igo_user_id, code_verifier, connector_name),
+                (state, b4igo_user_id, code_verifier, connector_name, status),
             )
 
     def pop_gmail_oauth_session(self, state: str) -> Optional[GmailOAuthSession]:
@@ -177,7 +181,25 @@ class AccountStorage:
             code_verifier=row["code_verifier"],
             connector_name=row["connector_name"],
             created_at=row["created_at"],
+            status=row["status"],
         )
+
+    def get_gmail_oauth_session_status(self, state: str) -> str:
+        with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT status FROM gmail_oauth_sessions WHERE state = ?",
+                (state,),
+            ).fetchone()
+            if row is None:
+                return "not_found"
+            return row["status"]
+
+    def update_gmail_oauth_session_status(self, state: str, status: str) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                "UPDATE gmail_oauth_sessions SET status = ? WHERE state = ?",
+                (status, state),
+            )
 
     def upsert_account(
         self,
@@ -304,6 +326,16 @@ class AccountStorage:
             )
             return cursor.rowcount > 0
 
+    def update_last_read(self, account_id: int, last_read: datetime) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE linked_email_accounts
+                SET last_read = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (last_read.astimezone(timezone.utc).isoformat(), account_id),
+            )
 
 def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
     """Convert sqlite row into LinkedAccount."""
@@ -328,6 +360,7 @@ def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
         display_name=row["display_name"],
         credentials=credentials,
         config=config,
+        last_read=row["last_read"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

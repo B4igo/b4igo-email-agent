@@ -1,7 +1,8 @@
 ﻿import { useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, Card, TextField, Typography, Alert } from '@mui/material';
-import { useSignIn } from 'react-auth-kit'
+import { useSignIn } from 'react-auth-kit';
 import { auth } from '../API/Auth.ts';
 
 export default function Login() {
@@ -12,7 +13,7 @@ export default function Login() {
     const signIn = useSignIn();
     const navigate = useNavigate();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit: NonNullable<React.ComponentProps<'form'>['onSubmit']> = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
@@ -20,8 +21,14 @@ export default function Login() {
         try {
             await auth.login(username, password, signIn);
             navigate('/');
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Login failed');
+        } catch (err: unknown) {
+            if (axios.isAxiosError<{ message?: string }>(err)) {
+                setError(err.response?.data?.message ?? 'Login failed');
+            } else if (err instanceof Error) {
+                setError(err.message || 'Login failed');
+            } else {
+                setError('Login failed');
+            }
         } finally {
             setLoading(false);
         }

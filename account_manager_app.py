@@ -143,6 +143,22 @@ def list_provider_types():
     return jsonify(service.list_provider_types()), 200
 
 
+@app.route("/api/providers/status/<state_id>", methods=["GET"])
+def check_oauth_status(state_id: str):
+    """Check the status of an OAuth linking session."""
+    # We do NOT require internal auth here typically if the frontend polls directly,
+    # but the frontend proxies through app.py which does not send the token or does it?
+    # Actually wait, app.py forwards requests to `5100`. The frontend calls app.py, which calls account_manager_app.py.
+    # We'll allow this endpoint to be checked just like other endpoints. Wait, frontend calls `app.py`. 
+    # Does app.py have a `/api/providers/status/<state_id>` route? No, we will need to add it to app.py too.
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    status = service.storage.get_gmail_oauth_session_status(state_id)
+    return jsonify({"status": status}), 200
+
+
 @app.route("/api/providers/<provider>/setup", methods=["POST"])
 def get_provider_setup(provider: str):
     """Build provider setup steps including OAuth redirects when required."""
@@ -152,10 +168,11 @@ def get_provider_setup(provider: str):
 
     payload: dict[str, Any] = request.get_json(silent=True) or {}
     b4igo_user_id = payload.get("b4igoUserId")
+    # oauthCallbackUrl is no longer explicitly required, but we'll accept it if present.
     callback_url = payload.get("oauthCallbackUrl")
     connector_name = payload.get("connectorName")
-    if not b4igo_user_id or not callback_url:
-        return jsonify({"error": "Missing required fields: b4igoUserId, oauthCallbackUrl"}), 400
+    if not b4igo_user_id:
+        return jsonify({"error": "Missing required fields: b4igoUserId"}), 400
 
     client_secrets_file = os.environ.get("B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json")
 
@@ -180,45 +197,40 @@ def run_provider_step_callback(provider: str, function_name: str):
 
     payload: dict[str, Any] = request.get_json(silent=True) or {}
     steps = payload.get("steps")
+    b4igo_user_id = payload.get("b4igoUserId")
+
     if not isinstance(steps, list):
         return jsonify({"error": "Validation error"}), 400
 
-    result = service.run_provider_setup_callback(provider, function_name, steps)
+    result = service.run_provider_setup_callback(provider, function_name, steps, b4igo_user_id)
     status = 200 if result.get("success") else 400
     return jsonify(result), status
 
 
-@app.route("/api/providers/<provider>/oauth/callback", methods=["POST"])
+@app.route("/api/providers/<provider>/oauth/callback", methods=["GET"])
 def complete_provider_oauth(provider: str):
     """Complete provider OAuth callback and upsert linked account."""
-    auth_error = _validate_internal_auth()
-    if auth_error:
-        return auth_error
-
-    payload: dict[str, Any] = request.get_json(silent=True) or {}
-    auth_code = payload.get("code")
-    state = payload.get("state")
-    callback_url = payload.get("oauthCallbackUrl")
-    if not auth_code or not state or not callback_url:
-        return jsonify({"error": "Missing required fields: code, state, oauthCallbackUrl"}), 400
-
+    # Do NOT validate internal auth here. Google redirects directly here via the user's browser popup.
+    
+    # query parameters from GET
+    request_args = request.args.to_dict()
     client_secrets_file = os.environ.get("B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json")
 
     try:
-        account = service.complete_provider_oauth(
+        error_msg = service.handle_oauth_callback(
             provider=provider,
-            auth_code=auth_code,
-            state=state,
+            request_args=request_args,
             client_secrets_file=client_secrets_file,
-            redirect_uri=callback_url,
         )
+        if error_msg:
+            logger.error("OAuth callback failed for %s: %s", provider, error_msg)
+            return f"<h1>Error</h1><p>{error_msg}</p>", 400
+            
     except Exception as exc:
         logger.error("Failed to complete provider OAuth: %s", exc)
-        return jsonify({"error": "Failed to complete authorization"}), 500
+        return "<h1>Server Error</h1><p>Failed to complete authorization</p>", 500
 
-    if account is None:
-        return jsonify({"error": "Validation error"}), 400
-    return jsonify(account), 201
+    return "<script>window.close()</script><h1>Success</h1><p>You can close this window.</p>", 200
 
 
 @app.route("/api/pull", methods=["POST"])

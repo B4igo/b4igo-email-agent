@@ -120,21 +120,26 @@ class AccountManagerClient:
         self,
         provider: str,
         b4igo_user_id: str,
-        oauth_callback_url: str,
         connector_name: Optional[str] = None,
     ) -> requests.Response:
-        """Build setup steps for a provider."""
-        payload: dict[str, Any] = {
-            "b4igoUserId": b4igo_user_id,
-            "oauthCallbackUrl": oauth_callback_url,
-        }
-        if connector_name:
-            payload["connectorName"] = connector_name
+        """Fetch setup steps required to link a new provider account.
 
+        Args:
+            provider: Target provider (e.g. 'gmail').
+            b4igo_user_id: B4iGO user identifier.
+            connector_name: Optional explicit display name for account.
+
+        Returns:
+            List of setup step definitions or validation error.
+        """
+        payload = {
+            "b4igoUserId": b4igo_user_id,
+            "connectorName": connector_name,
+        }
         return requests.post(
             f"{self.base_url}/api/providers/{provider}/setup",
-            json=payload,
             headers=self._headers(),
+            json=payload,
             timeout=self.timeout_seconds,
         )
 
@@ -143,9 +148,13 @@ class AccountManagerClient:
         provider: str,
         function_name: str,
         steps: list[dict[str, Any]],
+        b4igo_user_id: str,
     ) -> requests.Response:
         """Run one provider setup callback with raw steps payload."""
-        payload = {"steps": steps}
+        payload = {
+            "steps": steps,
+            "b4igoUserId": b4igo_user_id,
+        }
         return requests.post(
             f"{self.base_url}/api/providers/{provider}/steps/{function_name}",
             json=payload,
