@@ -4,12 +4,6 @@ flask-cors
 pydantic>=2.0
 pydantic[email]
 requests
-beautifulsoup4
-docling
-ollama
-numpy
-sentence-transformers
-scikit-learn
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
