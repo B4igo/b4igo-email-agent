@@ -1,0 +1,9 @@
+beautifulsoup4
+pydantic>=2.0
+pydantic[email]
+docling
+ollama
+numpy
+sentence-transformers
+scikit-learn
+requests

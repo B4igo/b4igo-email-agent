@@ -1,8 +1,11 @@
 """Unit tests for VaultClient and parse_vault_record."""
 
+import os
 import tempfile
+import unittest.mock
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import MagicMock
 
 from shared.ai_pipeline.schemas.schemas import (
     Doctor,
@@ -10,7 +13,8 @@ from shared.ai_pipeline.schemas.schemas import (
     MedicalHistory,
     Medication,
 )
-from shared.vault.client import VaultClient
+from shared.vault.b4igo_api_storage import B4igoVaultApiStorage
+from shared.vault.client import VaultClient, build_vault_storage_from_env
 from shared.vault.storage import VaultStorage
 from shared.vault.utils import parse_vault_record
 
@@ -122,3 +126,40 @@ class TestVaultClient(TestCase):
         assert rid is not None
         self.assertTrue(self.client.delete(rid))
         self.assertEqual(self.client.read("alice"), [])
+
+
+class TestBuildVaultStorageFromEnv(TestCase):
+    """Tests for build_vault_storage_from_env backend selection."""
+
+    def tearDown(self) -> None:
+        """Clean up env vars after each test."""
+        os.environ.pop("B4IGO_VAULT_BACKEND", None)
+        os.environ.pop("B4IGO_API_BASE_URL", None)
+
+    def test_default_returns_vault_storage(self) -> None:
+        """Returns VaultStorage when no B4IGO_VAULT_BACKEND env var is set."""
+        os.environ.pop("B4IGO_VAULT_BACKEND", None)
+        os.environ.pop("B4IGO_API_BASE_URL", None)
+        storage = build_vault_storage_from_env()
+        self.assertIsInstance(storage, VaultStorage)
+
+    def test_api_backend_returns_b4igo_api_storage(self) -> None:
+        """Returns B4igoVaultApiStorage when backend=api and base URL is set."""
+        os.environ["B4IGO_VAULT_BACKEND"] = "api"
+        os.environ["B4IGO_API_BASE_URL"] = "https://example.com"
+        mock_session = MagicMock()
+        patch_target = "shared.vault.client.B4igoVaultApiStorage"
+        with unittest.mock.patch(patch_target) as mock_cls:
+            mock_cls.return_value = B4igoVaultApiStorage(
+                base_url="https://example.com", session=mock_session
+            )
+            storage = build_vault_storage_from_env()
+            mock_cls.assert_called_once_with(base_url="https://example.com")
+        self.assertIsInstance(storage, B4igoVaultApiStorage)
+
+    def test_api_backend_without_url_falls_back_to_vault_storage(self) -> None:
+        """Returns VaultStorage when B4IGO_VAULT_BACKEND=api but no URL is set."""
+        os.environ["B4IGO_VAULT_BACKEND"] = "api"
+        os.environ.pop("B4IGO_API_BASE_URL", None)
+        storage = build_vault_storage_from_env()
+        self.assertIsInstance(storage, VaultStorage)

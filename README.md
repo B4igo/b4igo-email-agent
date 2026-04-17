@@ -6,7 +6,7 @@
 ### Backend
 Install the requirements (it's recommended to create a pyenv or conda environment first).
  ```bash
-   pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    ```
 Install the git hooks:
    ```bash
@@ -14,9 +14,10 @@ Install the git hooks:
    ```
 
 ### AccountManager microservice (internal)
-Run the dedicated account manager server separately from `app.py`:
+Run the dedicated account manager server separately from the backend:
 ```bash
-python3 account_manager_app.py
+pip install -r account-manager/requirements.txt
+python3 account-manager/account_manager_app.py
 ```
 
 Optional environment variables:
@@ -24,10 +25,10 @@ Optional environment variables:
 - `B4IGO_ACCOUNT_DB_PATH` (default `email_agent.db`)
 - `B4IGO_ACCOUNT_MANAGER_TOKEN` (if set, required in header `X-Internal-Service-Token`)
 
-`app.py` calls this internal service through `B4IGO_ACCOUNT_MANAGER_URL` (default `http://127.0.0.1:5100`).
+The backend (`backend/app.py`) calls this internal service through `B4IGO_ACCOUNT_MANAGER_URL` (default `http://127.0.0.1:5100`).
 
 ### Frontend
-Open the terminal in the b4igo_email_agent_frontend folder and run npm install
+Open the terminal in the `frontend` folder and run npm install
 to install the frontend packages (assuming that npm is already installed)
 ```bash
    npm i
@@ -39,14 +40,14 @@ Then use npm run dev to run the frontend:
 ```
 
 To run the frontend as an extension:
-1. Open a terminal in `b4igo_email_agent_frontend` and build the app:
+1. Open a terminal in `frontend` and build the app:
    ```bash
    npm run build
    ```
 2. Open your Chromium-based browser (Chrome, Edge, etc.) and go to `chrome://extensions/` (or `edge://extensions/`). 
 3. Turn on Developer mode in the top right corner. 
 4. Click Load unpacked. 
-5. Select the `b4igo_email_agent_frontend/dist` folder.
+5. Select the `frontend/dist` folder.
 
 
 ## Using commit hooks
