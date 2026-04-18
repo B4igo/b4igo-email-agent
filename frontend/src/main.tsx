@@ -9,6 +9,7 @@ import NavBar from "./Components/NavBar.tsx";
 import {EmailConnectorsPage} from "./Pages/EmailConnectors.tsx";
 import {ProviderCallbackPage} from "./Pages/Callback.tsx";
 import {SetupConnectorPage} from "./Pages/SetupConnector.tsx";
+import UploadFiles from "./Pages/UploadFiles.tsx";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 <NavBar>
                                     <Routes>
                                         <Route path="/" element={<Confirmations/>} />
+                                        <Route path="/upload" element={<UploadFiles/>} />
                                         <Route path="/email-connectors/callback" element={<ProviderCallbackPage/>} />
                                         <Route path="/email-connectors" element={<EmailConnectorsPage/>} />
                                         <Route path="/logout" element={<Logout />} />
