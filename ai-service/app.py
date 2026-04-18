@@ -134,6 +134,11 @@ def _convert_attachments_to_text(files: list[FileStorage]) -> str:
             os.remove(tmp_path)
     return text
 
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    """Health check endpoint for account manager service."""
+    return jsonify({"status": "healthy", "service": "ai-service"}), 200
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5300, debug=True)
+

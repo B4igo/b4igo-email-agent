@@ -377,6 +377,7 @@ def upload_files():
             file.seek(0)
             files_payload.append(('files', (file.filename, file.read(), file.mimetype)))
 
+        #TODO: need to catch errors sending to the ai service.
         executor.submit(_background_ai_upload, current_user, files_payload)
 
         return jsonify({

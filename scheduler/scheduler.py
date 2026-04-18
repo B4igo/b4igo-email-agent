@@ -151,7 +151,12 @@ def queueProcessing():
         #if a job was dequeued put it back
         if job:
             queue.rpush(MainQueue, job)
-        
+
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    """Health check endpoint for account manager service."""
+    return jsonify({"status": "healthy", "service": "scheduler"}), 200
+
 #Setup Scheduler--------------------------
 scheduler = BackgroundScheduler()
 scheduler.add_job(queueProcessing, "interval", seconds=5,)
