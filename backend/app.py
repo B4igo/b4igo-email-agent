@@ -28,6 +28,11 @@ from shared.database import db
 from shared.vault.client import VaultClient
 from shared.vault.utils import parse_vault_record
 
+from werkzeug.utils import secure_filename
+
+# TODO look through all these and make sure this is for all/most text documents
+ALLOWED_FILE_EXTENSIONS = {'txt', 'pdf', 'md', 'docx'}
+
 # LOGGING
 # configure logging (does not show in production
 # gunicorn server due to threded web-workers).
@@ -316,6 +321,71 @@ def accept_confirmation():
 
     except Exception:
         return jsonify({"error": "Missing 'id' parameter"}), 400
+
+@app.route("/api/file/types", methods=["GET"])
+def get_file_types():
+    """Get allowed file types for upload."""
+    return jsonify({"allowed_file_types": list(ALLOWED_FILE_EXTENSIONS)}), 200
+
+def _background_ai_upload(username: str, files_data: list):
+    import requests
+    try:
+        response = requests.post(
+            "http://localhost:5300/api/ai/text-with-attachments",
+            data={"username": username, "text": ""},
+            files=files_data,
+            timeout=30
+        )
+        if response.status_code not in (200, 201, 202):
+            logger.error("Failed to send files to AI pipeline: %s", response.text)
+    except Exception as e:
+        logger.error("Error calling AI pipeline: %s", e)
+
+@app.route("/api/file/upload", methods=["POST"])
+@jwt_required()
+def upload_files():
+    """Accept multiple files, check file types, and get the authenticated user."""
+    current_user = get_jwt_identity()
+
+    def allowed_file(filename):
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
+
+    if 'files' not in request.files:
+        return jsonify({"error": "No 'files' found in the request."}), 400
+
+    files = request.files.getlist('files')
+
+    if not files or files[0].filename == '':
+        return jsonify({"error": "No files selected."}), 400
+
+    accepted_files = []
+    rejected_files = []
+
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            accepted_files.append(filename)
+        else:
+            rejected_files.append(file.filename)
+
+    if len(rejected_files) > 0:
+        return jsonify({"error": "Invalid file type(s)", "rejected_files": rejected_files}), 400
+    else:
+        files_payload = []
+        for file in files:
+            file.seek(0)
+            files_payload.append(('files', (file.filename, file.read(), file.mimetype)))
+
+        executor.submit(_background_ai_upload, current_user, files_payload)
+
+        return jsonify({
+            "message": "Files processed",
+            "username": current_user,
+            "accepted_files": accepted_files,
+            "rejected_files": rejected_files
+        }), 200
+
 
 @app.route("/api/email-connectors", methods=["GET"])
 @jwt_required()
