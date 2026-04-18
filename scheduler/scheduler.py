@@ -126,11 +126,11 @@ def queueProcessing():
 
         if not normalized_files:
             response = requests.post(
-                aiCallText, json={"text":text}, timeout=10)
+                aiCallText, json={"text":text, "username": jobData['user']}, timeout=10)
         else:
             response = requests.post(
                 aiCallAttachments, 
-                data={"text":text},
+                data={"text":text, "username": jobData['user']},
                 files=normalized_files, 
                 timeout=10
                 )

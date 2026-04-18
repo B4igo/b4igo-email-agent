@@ -53,12 +53,17 @@ def parse_text() -> FlaskResponse:
     """
     payload = request.get_json()
     text = payload.get("text")
+    username = payload.get("username", "user")
+
+    if not username:
+        return jsonify({"error": "No username provided"}), 400
     if not text:
         return jsonify({"error": "No text provided"}), 400
+
     entries = pipeline(text)
     # TODO: This is a test method, needs to be replaced with real user
     # to integrate
-    _enqueue_entries(entries)
+    _enqueue_entries(entries, username)
 
     return (
         jsonify(
@@ -80,10 +85,13 @@ def parse_text_with_attachments() -> FlaskResponse:
         Status.
     """
     text = request.form.get("text")
+    username = request.form.get("username", "user")
+    files: list[FileStorage] = request.files.getlist("files")
+
     if not text:
         text = ""
-
-    files: list[FileStorage] = request.files.getlist("files")
+    if not username:
+        return jsonify({"error": "No username provided"}), 400
     if not files:
         return jsonify({"error": "No files provided"}), 400
 
@@ -91,15 +99,15 @@ def parse_text_with_attachments() -> FlaskResponse:
     entries = pipeline(text)
     # TODO: This is a test method, needs to be replaced with real user
     # to integrate
-    _enqueue_entries(entries)
+    _enqueue_entries(entries, username)
 
     return jsonify({"status": "processed"}), 202
 
 
-def _enqueue_entries(entries: list[BaseModel]):
+def _enqueue_entries(entries: list[BaseModel], username: str):
     """Send entries to confirmation queue."""
     for entry in entries:
-        payload = {"username": "user", "jsonPayload": entry.model_dump_json()}
+        payload = {"username": username, "jsonPayload": entry.model_dump_json()}
         response = requests.post(url, json=payload)
         print(response)
 
