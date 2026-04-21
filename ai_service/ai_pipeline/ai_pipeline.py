@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
-from shared.ai_pipeline.domain_classifier import DomainClassifier
-from shared.ai_pipeline.domain_parser import DomainParser
+from ai_service.ai_pipeline.domain_classifier import DomainClassifier
+from ai_service.ai_pipeline.domain_parser import DomainParser
 
 
 class AIPipeline:

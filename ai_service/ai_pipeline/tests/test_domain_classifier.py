@@ -3,7 +3,7 @@
 from datetime import datetime
 from unittest import TestCase
 
-from shared.ai_pipeline.domain_classifier import DomainClassifier
+from ai_service.ai_pipeline.domain_classifier import DomainClassifier
 from shared.mail.models import EmailAddress, EmailInput
 
 

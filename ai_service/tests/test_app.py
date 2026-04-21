@@ -45,8 +45,7 @@ class TestParseText(TestCase):
             json={"text": "Meeting tomorrow at 3pm with Dr. Smith"},
             content_type="application/json",
         ):
-            with patch.object(api_module, "_enqueue_entries"):
-                _, status = parse_text()
+            _, status = parse_text()
 
         self.assertEqual(status, 201)
 
@@ -70,25 +69,23 @@ class TestParseText(TestCase):
             content_type="application/json",
         ):
             spy = MagicMock(wraps=api_module.pipeline)
-            with patch.object(api_module, "pipeline", spy), patch.object(
-                api_module, "_enqueue_entries"
-            ):
+            with patch.object(api_module, "pipeline", spy):
                 parse_text()
 
         spy.assert_called_once_with(text)
 
-    def test_parse_text_enqueues_pipeline_entries(self):
+    def test_parse_text_returns_parsed_entries(self):
         with app.test_request_context(
             "/api/ai/text",
             method="POST",
             json={"text": "Some legal notice arrived"},
             content_type="application/json",
         ):
-            mock_enqueue = MagicMock()
-            with patch.object(api_module, "_enqueue_entries", mock_enqueue):
-                parse_text()
+            response, _ = parse_text()
 
-        mock_enqueue.assert_called_once()
+        data = response.get_json()
+        self.assertIn("data", data)
+        self.assertIsInstance(data["data"], list)
 
 
 class TestParseTextWithAttachments(TestCase):
@@ -110,7 +107,7 @@ class TestParseTextWithAttachments(TestCase):
 
         self.assertEqual(status, 400)
 
-    def test_returns_202_with_valid_file(self):
+    def test_returns_201_with_valid_file(self):
         with open(self.test_attachment_filepath, "rb") as f:
             file_bytes = f.read()
 
@@ -124,10 +121,9 @@ class TestParseTextWithAttachments(TestCase):
             data=data,
             content_type="multipart/form-data",
         ):
-            with patch.object(api_module, "_enqueue_entries"):
-                _, status = parse_text_with_attachments()
+            _, status = parse_text_with_attachments()
 
-        self.assertEqual(status, 202)
+        self.assertEqual(status, 201)
 
     def test_calls_pipeline_with_combined_text_and_attachment(self):
         with open(self.test_attachment_filepath, "rb") as f:
@@ -144,9 +140,7 @@ class TestParseTextWithAttachments(TestCase):
             content_type="multipart/form-data",
         ):
             spy = MagicMock(wraps=api_module.pipeline)
-            with patch.object(api_module, "pipeline", spy), patch.object(
-                api_module, "_enqueue_entries"
-            ):
+            with patch.object(api_module, "pipeline", spy):
                 parse_text_with_attachments()
 
         spy.assert_called_once()
@@ -165,10 +159,9 @@ class TestParseTextWithAttachments(TestCase):
             data=data,
             content_type="multipart/form-data",
         ):
-            with patch.object(api_module, "_enqueue_entries"):
-                _, status = parse_text_with_attachments()
+            _, status = parse_text_with_attachments()
 
-        self.assertEqual(status, 202)
+        self.assertEqual(status, 201)
 
 
 class TestAppendAttachmentsToText(TestCase):

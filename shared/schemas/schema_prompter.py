@@ -8,8 +8,10 @@ from typing import Type
 
 from pydantic import BaseModel
 
-from ..domain_classifier import Domain
-from . import legal_schemas, personal_schemas, schemas
+from . import legal_schemas, personal_schemas
+
+from ai_service.ai_pipeline.domain_classifier import Domain
+from . import schemas
 
 
 class SchemaPrompter:

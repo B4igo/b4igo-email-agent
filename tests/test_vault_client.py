@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from shared.ai_pipeline.schemas.schemas import (
+from shared.schemas.schemas import (
     Doctor,
     Insurance,
     MedicalHistory,

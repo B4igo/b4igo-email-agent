@@ -11,11 +11,9 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from flask import Flask, Response, jsonify, request
-from pydantic import BaseModel
-import requests
 from werkzeug.datastructures import FileStorage
 
-from shared.ai_pipeline.ai_pipeline import AIPipeline
+from ai_service.ai_pipeline.ai_pipeline import AIPipeline
 
 FlaskResponse = Tuple[Response, int]
 """Response and error code"""
@@ -56,14 +54,11 @@ def parse_text() -> FlaskResponse:
     if not text:
         return jsonify({"error": "No text provided"}), 400
     entries = pipeline(text)
-    # TODO: This is a test method, needs to be replaced with real user
-    # to integrate
-    _enqueue_entries(entries)
 
     return (
         jsonify(
             {
-                "status": "processed",
+                "data": [e.model_dump() for e in entries],
             }
         ),
         201,
@@ -89,19 +84,14 @@ def parse_text_with_attachments() -> FlaskResponse:
 
     text = _append_attachments_to_text(files, text)
     entries = pipeline(text)
-    # TODO: This is a test method, needs to be replaced with real user
-    # to integrate
-    _enqueue_entries(entries)
-
-    return jsonify({"status": "processed"}), 202
-
-
-def _enqueue_entries(entries: list[BaseModel]):
-    """Send entries to confirmation queue."""
-    for entry in entries:
-        payload = {"username": "user", "jsonPayload": entry.model_dump_json()}
-        response = requests.post(url, json=payload)
-        print(response)
+    return (
+        jsonify(
+            {
+                "data": [e.model_dump() for e in entries],
+            }
+        ),
+        201,
+    )
 
 
 def _append_attachments_to_text(files: list[FileStorage], text: str) -> str:
