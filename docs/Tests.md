@@ -16,4 +16,4 @@ Ex.
             - test_email_class.py
 ```
 
-The tests should use the `unittest` python package. Refer to [this file](../b4igo_email_agent/ai_pipeline/tests/test_domain_classifier.py)
+The tests should use the `unittest` python package. Refer to [this file](../shared/ai_pipeline/tests/test_domain_classifier.py)

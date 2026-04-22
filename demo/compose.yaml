@@ -3,9 +3,10 @@
 # Combines:
 #   - smtp-imap-test mail server + seeded emails + webmail (bundled in demo/smtp-imap-test/)
 #   - Host Ollama (expects qwen3:8b to be available via `ollama pull qwen3:8b`)
-#   - b4igo backend (Flask API)
-#   - b4igo frontend (React/Vite)
-#   - mail ingest (IMAP → AI pipeline → backend)
+#   - b4igo backend (Flask API) — Dockerfile in backend/
+#   - b4igo frontend (React/Vite) — Dockerfile in frontend/
+#   - account manager (auth + linked accounts) — Dockerfile in account-manager/
+#   - mail ingest (IMAP → AI pipeline → backend) — Dockerfile in mail-ingest/
 #
 # Usage:
 #   cd demo/
@@ -88,7 +89,7 @@ services:
   account-manager:
     build:
       context: ..
-      dockerfile: demo/Dockerfile.account-manager
+      dockerfile: account-manager/Dockerfile
     container_name: b4igo-account-manager
     ports:
       - "5100:5100"
@@ -108,7 +109,7 @@ services:
   backend:
     build:
       context: ..
-      dockerfile: demo/Dockerfile.backend
+      dockerfile: backend/Dockerfile
     container_name: b4igo-backend
     ports:
       - "5000:5000"
@@ -134,7 +135,7 @@ services:
   frontend:
     build:
       context: ..
-      dockerfile: demo/Dockerfile.frontend
+      dockerfile: frontend/Dockerfile
     container_name: b4igo-frontend
     ports:
       - "5173:5173"
@@ -151,7 +152,7 @@ services:
   mail-ingest:
     build:
       context: ..
-      dockerfile: demo/Dockerfile.ingest
+      dockerfile: mail-ingest/Dockerfile
     container_name: mail-ingest
     # Host network so we can reach Ollama on localhost:11434
     # (Ollama binds to 127.0.0.1 by default)

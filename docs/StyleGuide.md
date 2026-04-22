@@ -7,7 +7,7 @@ list of guidelines to follow when writing Python code.
 
 The project is written as a **package** and thus must be executable as a
 module. 
-Ex. `python -m b4igo_email_agent.subpackage.foo`
+Ex. `python -m shared.subpackage.foo`
 
 Each domain must have an `__init__.py` file to make it a subpackage.
 
