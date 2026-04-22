@@ -146,11 +146,6 @@ def list_provider_types():
 @app.route("/api/providers/status/<state_id>", methods=["GET"])
 def check_oauth_status(state_id: str):
     """Check the status of an OAuth linking session."""
-    # We do NOT require internal auth here typically if the frontend polls directly,
-    # but the frontend proxies through app.py which does not send the token or does it?
-    # Actually wait, app.py forwards requests to `5100`. The frontend calls app.py, which calls account_manager_app.py.
-    # We'll allow this endpoint to be checked just like other endpoints. Wait, frontend calls `app.py`. 
-    # Does app.py have a `/api/providers/status/<state_id>` route? No, we will need to add it to app.py too.
     auth_error = _validate_internal_auth()
     if auth_error:
         return auth_error
@@ -168,7 +163,6 @@ def get_provider_setup(provider: str):
 
     payload: dict[str, Any] = request.get_json(silent=True) or {}
     b4igo_user_id = payload.get("b4igoUserId")
-    # oauthCallbackUrl is no longer explicitly required, but we'll accept it if present.
     callback_url = payload.get("oauthCallbackUrl")
     connector_name = payload.get("connectorName")
     if not b4igo_user_id:
