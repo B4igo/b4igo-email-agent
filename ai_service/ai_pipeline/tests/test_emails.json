@@ -180,5 +180,149 @@
         "received_at": "2026-02-09T10:00:00"
       }
     }
+  ],
+  "personal_emails": [
+    {
+      "name": "single_contact",
+      "description": "Email introducing a new contact",
+      "expected_schemas": ["Contact"],
+      "email": {
+        "from_address": {
+          "address": "tom.nguyen@gmail.com",
+          "name": "Tom Nguyen"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "Hey, here's my contact info!",
+        "body": "Hey Alex,\n\nGreat meeting you at the conference last week. Here's my info:\n\nName: Tom Nguyen\nEmail: tom.nguyen@gmail.com\nPhone: (555) 234-5678\nRelationship: Friend\n\nLet's catch up soon!\n\nTom",
+        "received_at": "2026-03-01T09:00:00"
+      }
+    },
+    {
+      "name": "personal_event_birthday",
+      "description": "Email invitation to a birthday party",
+      "expected_schemas": ["PersonalEvent"],
+      "email": {
+        "from_address": {
+          "address": "jessica@email.com",
+          "name": "Jessica"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "You're invited to Jessica's 30th Birthday Celebration!",
+        "body": "Hi Alex,\n\nYou're invited to celebrate my 30th birthday!\n\nEvent: Jessica's 30th Birthday Celebration\nType: Birthday Party\nDate: 2026-04-05\nTime: 7:00 PM\nLocation: The Rooftop Lounge, 45 Main Street\nAttendees: Tom, Sarah, Marcus, Alex\n\nPlease RSVP by March 28th.\n\nJessica",
+        "received_at": "2026-03-10T14:00:00"
+      }
+    },
+    {
+      "name": "reminder_from_friend",
+      "description": "Email from a friend with a reminder and contact info",
+      "expected_schemas": ["Reminder", "Contact"],
+      "email": {
+        "from_address": {
+          "address": "sarah.k@gmail.com",
+          "name": "Sarah K"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "Don't forget to call Mom!",
+        "body": "Hey Alex,\n\nJust a reminder — Mom's birthday is coming up and you said you'd call her.\n\nTask: Call Mom for her birthday\nDue Date: 2026-03-15\nPriority: High\n\nAlso, reach out to me if you need her number:\nName: Sarah K\nEmail: sarah.k@gmail.com\nPhone: (555) 987-1234\n\nDon't forget!\nSarah",
+        "received_at": "2026-03-12T10:00:00"
+      }
+    }
+  ],
+  "legal_emails": [
+    {
+      "name": "contract_review",
+      "description": "Email about a contract requiring review and attorney introduction",
+      "expected_schemas": ["Contract", "Attorney"],
+      "email": {
+        "from_address": {
+          "address": "r.harris@harris-associates.com",
+          "name": "Rachel Harris"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "Technology Services Agreement - Please Review",
+        "body": "Dear Alex,\n\nI am Rachel Harris from Harris & Associates Law Firm, and I will be representing you in this matter.\n\nAttorney: Rachel Harris\nFirm: Harris & Associates Law Firm\nSpecialty: Contract Law\nEmail: r.harris@harris-associates.com\n\nPlease review the following contract:\n\nContract Title: Technology Services Agreement\nEffective Date: 2026-04-01\nExpiry Date: 2027-03-31\nDescription: Annual agreement covering software development and consulting services.\n\nPlease sign and return by March 25, 2026.\n\nRachel Harris",
+        "received_at": "2026-03-10T11:00:00"
+      }
+    },
+    {
+      "name": "court_date_notification",
+      "description": "Email notification of an upcoming court hearing",
+      "expected_schemas": ["CourtDate"],
+      "email": {
+        "from_address": {
+          "address": "clerk@superior-court.gov",
+          "name": "Superior Court Clerk"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "Court Hearing Notice - Case 2026-CV-00847",
+        "body": "COURT HEARING NOTICE\n\nCase Number: 2026-CV-00847\nCase Type: Civil\nDate: 2026-04-15\nTime: 9:30 AM\nCourt: Superior Court, 200 Civic Center Drive, Courtroom 5\n\nYour presence is required at the above-referenced hearing. Failure to appear may result in sanctions.\n\nSuperior Court Clerk",
+        "received_at": "2026-03-20T08:00:00"
+      }
+    },
+    {
+      "name": "legal_notice_cease_desist",
+      "description": "Email containing a cease and desist legal notice",
+      "expected_schemas": ["LegalNotice"],
+      "email": {
+        "from_address": {
+          "address": "legal@techcorp.com",
+          "name": "TechCorp Inc. Legal"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "LEGAL NOTICE: Cease and Desist",
+        "body": "LEGAL NOTICE\n\nType: Cease and Desist\nSender: TechCorp Inc.\nDate: 2026-03-13\nDeadline: 2026-03-27\nSubject: Unauthorized use of proprietary software\n\nYou are hereby directed to immediately cease and desist all use of TechCorp proprietary software without a valid license agreement.\n\nFailure to comply by the deadline may result in legal action.\n\nTechCorp Inc. Legal Department",
+        "received_at": "2026-03-13T10:00:00"
+      }
+    },
+    {
+      "name": "attorney_introduction",
+      "description": "Email from an attorney introducing themselves",
+      "expected_schemas": ["Attorney"],
+      "email": {
+        "from_address": {
+          "address": "r.harris@harris-associates.com",
+          "name": "Rachel Harris"
+        },
+        "to_address": [
+          {
+            "address": "user@email.com",
+            "name": "Alex"
+          }
+        ],
+        "subject": "Introduction - Your Attorney, Rachel Harris",
+        "body": "Dear Alex,\n\nI am writing to introduce myself as your attorney.\n\nName: Rachel Harris\nFirm: Harris & Associates Law Firm\nSpecialty: Contract Law\nEmail: r.harris@harris-associates.com\nPhone: (555) 321-9876\n\nI look forward to working with you. Please reach out with any questions.\n\nRachel Harris\nHarris & Associates Law Firm",
+        "received_at": "2026-03-25T15:30:00"
+      }
+    }
   ]
 }
