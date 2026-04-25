@@ -1,6 +1,6 @@
 """Defines DomainClassifier of AI Pipeline."""
 
-from typing import Dict, Literal, TypedDict
+from typing import Dict, Literal, Optional, TypedDict
 
 from sentence_transformers import CrossEncoder
 
@@ -18,9 +18,14 @@ class ClassificationResult(TypedDict):
 class DomainClassifier:
     """Semantic document categorizer using a CrossEncoder."""
 
-    def __init__(self):
+    DEFAULT_RERANKER = "Qwen/Qwen3-Reranker-0.6B"
+
+    def __init__(self, reranker_model: Optional[str] = None):
         """Initialize model and categories."""
-        self.model = CrossEncoder("cross-encoder/nli-MiniLM2-L6-H768")
+        if not reranker_model:
+            self.model = CrossEncoder(self.DEFAULT_RERANKER)
+        else:
+            self.model = CrossEncoder(reranker_model)
 
         # Define category descriptions for semantic matching
         self._categories = {
