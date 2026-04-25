@@ -1,7 +1,6 @@
 """Unit tests for the AI pipeline api."""
 
 import io
-import sys
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
@@ -15,11 +14,10 @@ from docling.datamodel.pipeline_options import (
 )
 from flask import Flask
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import app as api_module
+import ai_service.app as api_module
 
-from app import (
+from ai_service.app import (
     _append_attachments_to_text,
     parse_text,
     parse_text_with_attachments,
@@ -37,6 +35,13 @@ app = Flask(__name__)
 
 
 class TestParseText(TestCase):
+
+    def setUp(self):
+        self._enqueue_patcher = patch("ai_service.app.enqueue_confirmation")
+        self._enqueue_patcher.start()
+
+    def tearDown(self):
+        self._enqueue_patcher.stop()
 
     def test_parse_text_returns_201_with_valid_text(self):
         with app.test_request_context(
@@ -74,7 +79,7 @@ class TestParseText(TestCase):
 
         spy.assert_called_once_with(text)
 
-    def test_parse_text_returns_parsed_entries(self):
+    def test_parse_text_returns_processed_status(self):
         with app.test_request_context(
             "/api/ai/text",
             method="POST",
@@ -84,11 +89,17 @@ class TestParseText(TestCase):
             response, _ = parse_text()
 
         data = response.get_json()
-        self.assertIn("data", data)
-        self.assertIsInstance(data["data"], list)
+        self.assertEqual(data["status"], "processed")
 
 
 class TestParseTextWithAttachments(TestCase):
+
+    def setUp(self):
+        self._enqueue_patcher = patch("ai_service.app.enqueue_confirmation")
+        self._enqueue_patcher.start()
+
+    def tearDown(self):
+        self._enqueue_patcher.stop()
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -96,7 +107,7 @@ class TestParseTextWithAttachments(TestCase):
             HERE / "test_attachments" / "test_health.pdf"
         ).resolve()
 
-    def test_returns_400_when_no_files_provided(self):
+    def test_returns_400_when_no_username_provided(self):
         with app.test_request_context(
             "/api/ai/text-with-attachments",
             method="POST",
@@ -112,6 +123,7 @@ class TestParseTextWithAttachments(TestCase):
             file_bytes = f.read()
 
         data = {
+            "username": "testuser",
             "text": "See attached health document",
             "files": (io.BytesIO(file_bytes), "test_health.pdf"),
         }
@@ -130,6 +142,7 @@ class TestParseTextWithAttachments(TestCase):
             file_bytes = f.read()
 
         data = {
+            "username": "testuser",
             "text": "See attached",
             "files": (io.BytesIO(file_bytes), "test_health.pdf"),
         }
@@ -152,7 +165,10 @@ class TestParseTextWithAttachments(TestCase):
         with open(self.test_attachment_filepath, "rb") as f:
             file_bytes = f.read()
 
-        data = {"files": (io.BytesIO(file_bytes), "test_health.pdf")}
+        data = {
+            "username": "testuser",
+            "files": (io.BytesIO(file_bytes), "test_health.pdf"),
+        }
         with app.test_request_context(
             "/api/ai/text-with-attachments",
             method="POST",

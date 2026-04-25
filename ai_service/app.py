@@ -1,6 +1,8 @@
 """Defines flask api for AI pipeline microservice"""
 
+import logging
 import os
+import sys
 import tempfile
 from typing import Tuple
 
@@ -11,6 +13,7 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from flask import Flask, Response, jsonify, request
+import requests
 from werkzeug.datastructures import FileStorage
 
 from ai_service.ai_pipeline.ai_pipeline import AIPipeline
@@ -25,6 +28,7 @@ pipeline_options.accelerator_options = accelerator_options
 
 # TODO: GPU processing is not working on my (Jake's) machine for some reason
 # this uses cpu instead
+# TODO: Do you need to specify cpu for each input type?
 converter = DocumentConverter(
     format_options={
         InputFormat.PDF: PdfFormatOption(
@@ -35,63 +39,16 @@ converter = DocumentConverter(
 
 # TODO: Will need to be changed when hooked up
 pipeline = AIPipeline()
-url = "http://localhost:5000/api/confirmations/enqueue"
+BACKEND_URL = "http://localhost:5000/api/confirmations/enqueue"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-
-
-@app.route("/api/ai/text", methods=["POST"])
-def parse_text() -> FlaskResponse:
-    """Process text-only json message.
-
-    Returns
-    -------
-    FlaskResponse
-        Status.
-    """
-    payload = request.get_json()
-    text = payload.get("text")
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
-    entries = pipeline(text)
-
-    return (
-        jsonify(
-            {
-                "data": [e.model_dump() for e in entries],
-            }
-        ),
-        201,
-    )
-
-
-@app.route("/api/ai/text-with-attachments", methods=["POST"])
-def parse_text_with_attachments() -> FlaskResponse:
-    """Process multi-part form message with attachments.
-
-    Returns
-    -------
-    FlaskResponse
-        Status.
-    """
-    text = request.form.get("text")
-    if not text:
-        text = ""
-
-    files: list[FileStorage] = request.files.getlist("files")
-    if not files:
-        return jsonify({"error": "No files provided"}), 400
-
-    text = _append_attachments_to_text(files, text)
-    entries = pipeline(text)
-    return (
-        jsonify(
-            {
-                "data": [e.model_dump() for e in entries],
-            }
-        ),
-        201,
-    )
 
 
 def _append_attachments_to_text(files: list[FileStorage], text: str) -> str:
@@ -115,6 +72,87 @@ def _convert_attachments_to_text(files: list[FileStorage]) -> str:
         finally:
             os.remove(tmp_path)
     return text
+
+
+def enqueue_confirmation(username: str, payload: str):
+    """POST a confirmation to the backend API."""
+    resp = requests.post(
+        f"{BACKEND_URL}/api/confirmations/enqueue",
+        json={"username": username, "jsonPayload": payload},
+        timeout=30,
+    )
+    if resp.status_code == 201:
+        logger.info("Enqueued confirmation for %s", username)
+    else:
+        logger.warning(
+            "Failed to enqueue confirmation: %s %s", resp.status_code, resp.text
+        )
+
+
+@app.route("/api/ai/text", methods=["POST"])
+def parse_text() -> FlaskResponse:
+    """Process text-only json message.
+
+    Calls AI pipeline on passed text and enqueues
+    entries in confirmation queue.
+
+    Returns
+    -------
+    FlaskResponse
+        Status.
+    """
+    payload = request.get_json()
+    text = payload.get("text")
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    entries = pipeline(text)
+    for entry in entries:
+        enqueue_confirmation(payload.get("username"), entry.model_dump_json())
+
+    return (
+        jsonify({"status": "processed"}),
+        201,
+    )
+
+
+@app.route("/api/ai/text-with-attachments", methods=["POST"])
+def parse_text_with_attachments() -> FlaskResponse:
+    """Process multi-part form message with attachments.
+
+    Converts attachments to tokens using docling, then
+    calls the AI pipeline on the tokens + text and enqueue
+    the entries in confirmation queue.
+
+    Notes
+    -----
+    Requires multi-part form request due to attachments.
+    Can be used with text only.
+
+    Returns
+    -------
+    FlaskResponse
+        Status.
+    """
+    username = request.form.get("username")
+    if not username:
+        return jsonify({"error": "No username provided"}), 400
+    text = request.form.get("text")
+    if not text:
+        text = ""
+    files: list[FileStorage] = request.files.getlist("files")
+    if not files:
+        files = []
+
+    text = _append_attachments_to_text(files, text)
+    entries = pipeline(text)
+    for entry in entries:
+        enqueue_confirmation(username, entry.model_dump_json())
+
+    return (
+        jsonify({"status": "processed"}),
+        201,
+    )
 
 
 if __name__ == "__main__":
