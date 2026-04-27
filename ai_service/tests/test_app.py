@@ -1,7 +1,6 @@
 """Unit tests for the AI pipeline api."""
 
 import io
-import sys
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
@@ -15,11 +14,10 @@ from docling.datamodel.pipeline_options import (
 )
 from flask import Flask
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import app as api_module
+import ai_service.app as api_module
 
-from app import (
+from ai_service.app import (
     _append_attachments_to_text,
     parse_text,
     parse_text_with_attachments,
@@ -38,6 +36,13 @@ app = Flask(__name__)
 
 class TestParseText(TestCase):
 
+    def setUp(self):
+        self._enqueue_patcher = patch("ai_service.app.enqueue_confirmation")
+        self._enqueue_patcher.start()
+
+    def tearDown(self):
+        self._enqueue_patcher.stop()
+
     def test_parse_text_returns_201_with_valid_text(self):
         with app.test_request_context(
             "/api/ai/text",
@@ -45,8 +50,7 @@ class TestParseText(TestCase):
             json={"text": "Meeting tomorrow at 3pm with Dr. Smith"},
             content_type="application/json",
         ):
-            with patch.object(api_module, "_enqueue_entries"):
-                _, status = parse_text()
+            _, status = parse_text()
 
         self.assertEqual(status, 201)
 
@@ -70,28 +74,32 @@ class TestParseText(TestCase):
             content_type="application/json",
         ):
             spy = MagicMock(wraps=api_module.pipeline)
-            with patch.object(api_module, "pipeline", spy), patch.object(
-                api_module, "_enqueue_entries"
-            ):
+            with patch.object(api_module, "pipeline", spy):
                 parse_text()
 
         spy.assert_called_once_with(text)
 
-    def test_parse_text_enqueues_pipeline_entries(self):
+    def test_parse_text_returns_processed_status(self):
         with app.test_request_context(
             "/api/ai/text",
             method="POST",
             json={"text": "Some legal notice arrived"},
             content_type="application/json",
         ):
-            mock_enqueue = MagicMock()
-            with patch.object(api_module, "_enqueue_entries", mock_enqueue):
-                parse_text()
+            response, _ = parse_text()
 
-        mock_enqueue.assert_called_once()
+        data = response.get_json()
+        self.assertEqual(data["status"], "processed")
 
 
 class TestParseTextWithAttachments(TestCase):
+
+    def setUp(self):
+        self._enqueue_patcher = patch("ai_service.app.enqueue_confirmation")
+        self._enqueue_patcher.start()
+
+    def tearDown(self):
+        self._enqueue_patcher.stop()
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -99,7 +107,7 @@ class TestParseTextWithAttachments(TestCase):
             HERE / "test_attachments" / "test_health.pdf"
         ).resolve()
 
-    def test_returns_400_when_no_files_provided(self):
+    def test_returns_400_when_no_username_provided(self):
         with app.test_request_context(
             "/api/ai/text-with-attachments",
             method="POST",
@@ -110,11 +118,12 @@ class TestParseTextWithAttachments(TestCase):
 
         self.assertEqual(status, 400)
 
-    def test_returns_202_with_valid_file(self):
+    def test_returns_201_with_valid_file(self):
         with open(self.test_attachment_filepath, "rb") as f:
             file_bytes = f.read()
 
         data = {
+            "username": "testuser",
             "text": "See attached health document",
             "files": (io.BytesIO(file_bytes), "test_health.pdf"),
         }
@@ -124,16 +133,16 @@ class TestParseTextWithAttachments(TestCase):
             data=data,
             content_type="multipart/form-data",
         ):
-            with patch.object(api_module, "_enqueue_entries"):
-                _, status = parse_text_with_attachments()
+            _, status = parse_text_with_attachments()
 
-        self.assertEqual(status, 202)
+        self.assertEqual(status, 201)
 
     def test_calls_pipeline_with_combined_text_and_attachment(self):
         with open(self.test_attachment_filepath, "rb") as f:
             file_bytes = f.read()
 
         data = {
+            "username": "testuser",
             "text": "See attached",
             "files": (io.BytesIO(file_bytes), "test_health.pdf"),
         }
@@ -144,9 +153,7 @@ class TestParseTextWithAttachments(TestCase):
             content_type="multipart/form-data",
         ):
             spy = MagicMock(wraps=api_module.pipeline)
-            with patch.object(api_module, "pipeline", spy), patch.object(
-                api_module, "_enqueue_entries"
-            ):
+            with patch.object(api_module, "pipeline", spy):
                 parse_text_with_attachments()
 
         spy.assert_called_once()
@@ -158,17 +165,19 @@ class TestParseTextWithAttachments(TestCase):
         with open(self.test_attachment_filepath, "rb") as f:
             file_bytes = f.read()
 
-        data = {"files": (io.BytesIO(file_bytes), "test_health.pdf")}
+        data = {
+            "username": "testuser",
+            "files": (io.BytesIO(file_bytes), "test_health.pdf"),
+        }
         with app.test_request_context(
             "/api/ai/text-with-attachments",
             method="POST",
             data=data,
             content_type="multipart/form-data",
         ):
-            with patch.object(api_module, "_enqueue_entries"):
-                _, status = parse_text_with_attachments()
+            _, status = parse_text_with_attachments()
 
-        self.assertEqual(status, 202)
+        self.assertEqual(status, 201)
 
 
 class TestAppendAttachmentsToText(TestCase):

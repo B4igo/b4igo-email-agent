@@ -6,19 +6,19 @@ from pathlib import Path
 from typing import Any, Dict, List
 from unittest import TestCase, mock
 
-from shared.ai_pipeline.domain_parser import DomainParser
-from shared.ai_pipeline.schemas.legal_schemas import (
+from ai_service.ai_pipeline.domain_parser import DomainParser
+from shared.schemas.legal_schemas import (
     Attorney,
     Contract,
     CourtDate,
     LegalNotice,
 )
-from shared.ai_pipeline.schemas.personal_schemas import (
+from shared.schemas.personal_schemas import (
     Contact,
     PersonalEvent,
     Reminder,
 )
-from shared.ai_pipeline.schemas.schemas import (
+from shared.schemas.schemas import (
     Appointment,
     Bill,
     Doctor,
@@ -62,9 +62,7 @@ class TestDomainParser(TestCase):
 
     def setUp(self) -> None:
         """Patch ollama.chat so tests do not require Ollama or qwen3:8b."""
-        self._chat_patcher = mock.patch(
-            "shared.ai_pipeline.domain_parser.chat"
-        )
+        self._chat_patcher = mock.patch("ai_service.ai_pipeline.domain_parser.chat")
         mock_chat = self._chat_patcher.start()
         mock_response = mock.MagicMock()
         mock_response.message.content = json.dumps(_MOCK_CHAT_RESPONSE_JSON)
@@ -353,9 +351,7 @@ class TestPersonalDomainParser(TestCase):
 
     def setUp(self) -> None:
         """Patch ollama.chat so tests do not require Ollama."""
-        self._chat_patcher = mock.patch(
-            "shared.ai_pipeline.domain_parser.chat"
-        )
+        self._chat_patcher = mock.patch("ai_service.ai_pipeline.domain_parser.chat")
         mock_chat = self._chat_patcher.start()
         mock_response = mock.MagicMock()
         mock_response.message.content = json.dumps(_MOCK_PERSONAL_RESPONSE_JSON)
@@ -428,9 +424,7 @@ class TestLegalDomainParser(TestCase):
 
     def setUp(self) -> None:
         """Patch ollama.chat so tests do not require Ollama."""
-        self._chat_patcher = mock.patch(
-            "shared.ai_pipeline.domain_parser.chat"
-        )
+        self._chat_patcher = mock.patch("ai_service.ai_pipeline.domain_parser.chat")
         mock_chat = self._chat_patcher.start()
         mock_response = mock.MagicMock()
         mock_response.message.content = json.dumps(_MOCK_LEGAL_RESPONSE_JSON)

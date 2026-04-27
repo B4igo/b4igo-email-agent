@@ -2,7 +2,7 @@
 
 import unittest
 
-from shared.ai_pipeline.schemas.schema_prompter import SchemaPrompter
+from shared.schemas.schema_prompter import SchemaPrompter
 
 
 class TestSchemaPrompter(unittest.TestCase):

@@ -3,7 +3,7 @@
 import os
 from typing import Any, Optional, Protocol, Union
 
-from shared.ai_pipeline.schemas.schemas import (
+from shared.schemas.schemas import (
     Doctor,
     Insurance,
     MedicalHistory,
