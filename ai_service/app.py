@@ -38,7 +38,9 @@ converter = DocumentConverter(
 )
 
 # TODO: Will need to be changed when hooked up
-pipeline = AIPipeline()
+reranker_model = os.environ.get("RERANKER_MODEL", None)
+parser_model = os.environ.get("PARSER_MODEL", None)
+pipeline = AIPipeline(reranker_model=reranker_model, parser_model=parser_model)
 BACKEND_URL = "http://localhost:5000/api/confirmations/enqueue"
 
 logging.basicConfig(

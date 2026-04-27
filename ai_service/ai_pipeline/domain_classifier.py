@@ -1,11 +1,8 @@
 """Defines DomainClassifier of AI Pipeline."""
 
-from typing import Dict, Literal, TypedDict
+from typing import Dict, Literal, Optional, TypedDict
 
-import numpy as np
-from numpy.typing import NDArray
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import CrossEncoder
 
 Domain = Literal["education", "health", "legal", "personal", "other"]
 
@@ -19,12 +16,16 @@ class ClassificationResult(TypedDict):
 
 
 class DomainClassifier:
-    """Semantic document categorizer using sentence-transformers."""
+    """Semantic document categorizer using a CrossEncoder."""
 
-    def __init__(self):
-        """Initialize model, embeddings, and categories."""
-        # TODO- Will host model in isolated runtime eventually
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+    DEFAULT_RERANKER = "Qwen/Qwen3-Reranker-0.6B"
+
+    def __init__(self, reranker_model: Optional[str] = None):
+        """Initialize model and categories."""
+        if not reranker_model:
+            self.model = CrossEncoder(self.DEFAULT_RERANKER)
+        else:
+            self.model = CrossEncoder(reranker_model)
 
         # Define category descriptions for semantic matching
         self._categories = {
@@ -58,21 +59,7 @@ class DomainClassifier:
                 "uncategorized content that doesn't fit specific categories"
             ),
         }
-        self._category_embeddings: Dict[str, NDArray] = {}
-        self._category_list: list[str] = []
-        self._category_matrix: NDArray = np.empty((0, 0))
-        self._compute_domain_embeddings()
-
-    def _compute_domain_embeddings(self):
-        self._category_list = list(self._categories.keys())
-        for category in self._category_list:
-            description = self._categories[category]
-            self._category_embeddings[category] = np.array(
-                self.model.encode(description, convert_to_tensor=False)
-            )
-        self._category_matrix = np.vstack(
-            [self._category_embeddings[category] for category in self._category_list]
-        )
+        self._category_list: list[str] = list(self._categories.keys())
 
     def __call__(self, text: str) -> ClassificationResult:
         """Classify a document into a predefined category.
@@ -83,17 +70,19 @@ class DomainClassifier:
         Returns:
             ClassificationResult: Result with category, confidence, and all scores.
         """
-        embedding = np.array(self.model.encode(text, convert_to_tensor=False)).reshape(
-            1, -1
-        )
-        scores = cosine_similarity(embedding, self._category_matrix)[0]
-        similarities = {
-            category: float(score)
-            for category, score in zip(self._category_list, scores)
-        }
-        best_index = int(np.argmax(scores))
+        pairs = [(text, self._categories[category]) for category in self._category_list]
+        raw_scores = self.model.predict(pairs)
+
+        # Normalise raw scores to [0, 1] via softmax so they sum to 1
+        exp_scores = [float(__import__("math").exp(s)) for s in raw_scores]
+        total = sum(exp_scores)
+        normalised = [s / total for s in exp_scores]
+
+        all_scores: Dict[str, float] = dict(zip(self._category_list, normalised))
+        best_index = int(max(range(len(normalised)), key=lambda i: normalised[i]))
+
         return ClassificationResult(
             domain=self._category_list[best_index],  # type: ignore
-            confidence=float(scores[best_index]),
-            all_scores=similarities,
+            confidence=normalised[best_index],
+            all_scores=all_scores,
         )
