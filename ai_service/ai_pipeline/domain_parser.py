@@ -7,13 +7,12 @@ from typing import Optional
 from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
-from shared.ai_pipeline.domain_classifier import Domain
-from shared.ai_pipeline.schemas import (
-    legal_schemas,
-    personal_schemas,
+from ai_service.ai_pipeline.domain_classifier import Domain
+from shared.schemas import (
     schemas,
 )
-from shared.ai_pipeline.schemas.schema_prompter import SchemaPrompter
+from shared.schemas.schema_prompter import SchemaPrompter
+from shared.schemas import legal_schemas, personal_schemas
 
 _DOMAIN_MODULES = {
     "health": schemas,
@@ -25,8 +24,11 @@ _DOMAIN_MODULES = {
 class DomainParser:
     """Parses a document for all information within a given domain."""
 
-    def __init__(self) -> None:
+    DEFAULT_MODEL = "qwen3:8b"
+
+    def __init__(self, model: Optional[str] = None) -> None:
         """Initializes DomainParser."""
+        self._model = model if model else self.DEFAULT_MODEL
         self.messages: list[dict[str, str]] = []
         self.schema_prompter: SchemaPrompter = SchemaPrompter()
 
@@ -97,9 +99,8 @@ class DomainParser:
             {"role": "user", "content": text},
         ]
 
-        # TODO: Make model configurable
         response: ChatResponse = chat(
-            model="qwen3:8b", messages=messages, think=False, format="json"
+            model=self._model, messages=messages, think=False, format="json"
         )
         response_content = response.message.content
         entries = self._validate_response(response_content, domain)

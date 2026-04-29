@@ -1,20 +1,20 @@
 """Subpackage containing schemas and related utilities."""
 
-from shared.ai_pipeline.schemas import legal_schemas  # noqa: F401
-from shared.ai_pipeline.schemas import personal_schemas  # noqa: F401
-from shared.ai_pipeline.schemas import schemas  # noqa: F401
-from shared.ai_pipeline.schemas.legal_schemas import (
+from shared.schemas import legal_schemas  # noqa: F401
+from shared.schemas import personal_schemas  # noqa: F401
+from shared.schemas import schemas  # noqa: F401
+from shared.schemas.legal_schemas import (
     Attorney,
     Contract,
     CourtDate,
     LegalNotice,
 )
-from shared.ai_pipeline.schemas.personal_schemas import (
+from shared.schemas.personal_schemas import (
     Contact,
     PersonalEvent,
     Reminder,
 )
-from shared.ai_pipeline.schemas.schemas import (
+from shared.schemas.schemas import (
     Appointment,
     Bill,
     Doctor,

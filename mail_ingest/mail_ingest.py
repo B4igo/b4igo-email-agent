@@ -20,8 +20,6 @@ from email.message import EmailMessage
 
 import requests
 
-from shared.ai_pipeline.domain_classifier import DomainClassifier
-from shared.ai_pipeline.domain_parser import DomainParser
 from shared.mail.models import EmailAddress, EmailInput
 
 logging.basicConfig(
@@ -51,9 +49,7 @@ def wait_for_service(name: str, check_fn, retries: int = 90, delay: float = 3.0)
             logger.info("%s is ready", name)
             return
         except Exception as e:
-            logger.info(
-                "Waiting for %s (%d/%d): %s", name, attempt + 1, retries, e
-            )
+            logger.info("Waiting for %s (%d/%d): %s", name, attempt + 1, retries, e)
             time.sleep(delay)
     raise RuntimeError(f"{name} not available after {retries} attempts")
 
@@ -131,7 +127,9 @@ def mime_to_email_input(msg: EmailMessage) -> EmailInput:
     # Parse date
     date_str = msg.get("date")
     try:
-        received_at = email.utils.parsedate_to_datetime(date_str) if date_str else datetime.now()
+        received_at = (
+            email.utils.parsedate_to_datetime(date_str) if date_str else datetime.now()
+        )
     except Exception:
         received_at = datetime.now()
 
@@ -192,15 +190,32 @@ def enqueue_confirmation(username: str, payload: str):
         )
 
 
+def call_ai_pipeline(email_input: EmailInput) -> list[dict[str, dict]]:
+    resp = requests.post(
+        f"{BACKEND_URL}/api/ai/text",
+        json={
+            "username": BACKEND_USER,
+            "jsonPayload": email_input.model_dump_json(),
+        },
+        timeout=30,
+    )
+    if resp.status_code == 201:
+        logger.info("Called AI service for %s", BACKEND_USER)
+        return resp.json()["data"]
+    else:
+        logger.warning("Failed to call AI service: %s %s", resp.status_code, resp.text)
+        return []
+
+
 def process_emails():
-    """Main pipeline: fetch → classify → parse → enqueue."""
+    """Main pipeline: fetch → parse → enqueue."""
     raw_messages = fetch_emails()
     if not raw_messages:
         logger.info("No emails to process")
         return
 
     # Convert to EmailInput (using model_construct to bypass .local TLD validation)
-    email_inputs = []
+    email_inputs: list[EmailInput] = []
     for msg in raw_messages:
         try:
             email_input = mime_to_email_input(msg)
@@ -210,45 +225,11 @@ def process_emails():
 
     logger.info("Converted %d emails to EmailInput", len(email_inputs))
 
-    # Classify all emails
-    classifier = DomainClassifier()
-    classifications = classifier.classify(email_inputs)
-
-    logger.info("Classified %d emails", len(classifications))
-    for ei, cl in zip(email_inputs, classifications):
-        logger.info(
-            "  [%s] (%.2f) %s", cl["category"], cl["confidence"], ei.subject
-        )
-
-    # Parse emails that have a supported domain (currently only 'health')
-    parser = DomainParser()
-    total_enqueued = 0
-
-    for email_input, classification in zip(email_inputs, classifications):
-        domain = classification["category"]
-        if domain not in ("health",):
-            logger.info(
-                "Skipping unsupported domain '%s' for: %s",
-                domain,
-                email_input.subject,
-            )
-            continue
-
-        try:
-            parsed_models = parser.parse_email(email_input, domain)
-            for model in parsed_models:
-                enqueue_confirmation(BACKEND_USER, model.model_dump_json())
-                total_enqueued += 1
-        except Exception as e:
-            logger.warning(
-                "Failed to parse email '%s': %s", email_input.subject, e
-            )
-
-    logger.info(
-        "Pipeline complete: %d emails processed, %d confirmations enqueued",
-        len(email_inputs),
-        total_enqueued,
-    )
+    # Parse all emails
+    for email_input in email_inputs:
+        parsed_entries = call_ai_pipeline(email_input)
+        for entry in parsed_entries:
+            enqueue_confirmation(BACKEND_URL, json.dumps(entry))
 
 
 def main():
