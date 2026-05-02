@@ -1,20 +1,22 @@
 """Provider abstraction for pulling emails from linked accounts."""
 
-from abc import ABC, abstractmethod
-from typing import Any
-
-from .storage import AccountStorage
-from .models import EmailSetupStep, LinkedAccount
-from datetime import datetime, timedelta, timezone
 import base64
 import email
 import imaplib
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from typing import Any
+
+from .models import EmailSetupStep, LinkedAccount
+from .storage import AccountStorage
+
 
 def _since_dt(last_read: datetime | None, fallback_days: int = 14) -> datetime:
     if last_read is not None:
         return last_read.astimezone(timezone.utc)
     return datetime.now(timezone.utc) - timedelta(days=fallback_days)
+
 
 class EmailProvider(ABC):
     """Interface for provider-specific email pulling logic."""
@@ -35,12 +37,20 @@ class EmailProvider(ABC):
         """Return generic setup steps for this provider."""
 
     @abstractmethod
-    def CallFunction(self, function_name: str, steps: list[EmailSetupStep], account_id: str, storage: AccountStorage) -> str:
+    def CallFunction(
+        self,
+        function_name: str,
+        steps: list[EmailSetupStep],
+        account_id: str,
+        storage: AccountStorage,
+    ) -> str:
         """Handle provider-specific setup callback hooks."""
 
-    def HandleCallback(self, request_args: dict[str, Any], storage: AccountStorage) -> str:
+    def HandleCallback(
+        self, request_args: dict[str, Any], storage: AccountStorage
+    ) -> str:
         """Handle OAuth callback or similar external provider redirect hooks.
-        
+
         By default, does nothing and raises NotImplementedError.
         """
         raise NotImplementedError
@@ -91,33 +101,46 @@ class ImapProvider(EmailProvider):
                 sender = str(msg.get("From", ""))
                 date_raw = msg.get("Date")
                 try:
-                    received = parsedate_to_datetime(date_raw).astimezone(
-                        timezone.utc).isoformat() if date_raw else None
+                    received = (
+                        parsedate_to_datetime(date_raw)
+                        .astimezone(timezone.utc)
+                        .isoformat()
+                        if date_raw
+                        else None
+                    )
                 except Exception:
                     received = None
 
                 body = ""
                 if msg.is_multipart():
                     for part in msg.walk():
-                        if part.get_content_type() == "text/plain" and "attachment" not in str(
-                                part.get("Content-Disposition", "")).lower():
+                        if (
+                            part.get_content_type() == "text/plain"
+                            and "attachment"
+                            not in str(part.get("Content-Disposition", "")).lower()
+                        ):
                             payload = part.get_payload(decode=True) or b""
                             charset = part.get_content_charset() or "utf-8"
                             body = payload.decode(charset, errors="replace")
                             break
                 else:
                     payload = msg.get_payload(decode=True) or b""
-                    body = payload.decode(msg.get_content_charset() or "utf-8", errors="replace")
+                    body = payload.decode(
+                        msg.get_content_charset() or "utf-8", errors="replace"
+                    )
 
-                out.append({
-                    "provider": "imap",
-                    "accountId": account.id,
-                    "emailAddress": account.email_address,
-                    "subject": subject,
-                    "body": body,
-                    "receivedAt": received or datetime.now(timezone.utc).isoformat(),
-                    "metadata": {"from": sender, "mailbox": mailbox},
-                })
+                out.append(
+                    {
+                        "provider": "imap",
+                        "accountId": account.id,
+                        "emailAddress": account.email_address,
+                        "subject": subject,
+                        "body": body,
+                        "receivedAt": received
+                        or datetime.now(timezone.utc).isoformat(),
+                        "metadata": {"from": sender, "mailbox": mailbox},
+                    }
+                )
 
             return out
         finally:
@@ -165,7 +188,13 @@ class ImapProvider(EmailProvider):
             ),
         ]
 
-    def CallFunction(self, function_name: str, steps: list[EmailSetupStep], account_id: str, storage: AccountStorage) -> str:
+    def CallFunction(
+        self,
+        function_name: str,
+        steps: list[EmailSetupStep],
+        account_id: str,
+        storage: AccountStorage,
+    ) -> str:
         """Handle provider-specific setup callback hooks with user context for connector creation."""
         if function_name != "final_step":
             raise ValueError(f"Unknown function name: {function_name}")
@@ -174,7 +203,12 @@ class ImapProvider(EmailProvider):
             email_address = (steps[0].value or "").strip()
             host = (steps[1].value or "").strip()
             port = int((steps[2].value or "993").strip())
-            use_ssl = str(steps[3].value or "true").strip().lower() in ("1", "true", "yes", "on")
+            use_ssl = str(steps[3].value or "true").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
+            )
             username = (steps[4].value or "").strip() or email_address
             password = (steps[5].value or "").strip()
 
@@ -182,7 +216,9 @@ class ImapProvider(EmailProvider):
                 return "Missing required IMAP fields"
 
             # First validate the connection
-            conn = imaplib.IMAP4_SSL(host, port) if use_ssl else imaplib.IMAP4(host, port)
+            conn = (
+                imaplib.IMAP4_SSL(host, port) if use_ssl else imaplib.IMAP4(host, port)
+            )
             try:
                 conn.login(username, password)
                 status, _ = conn.select("INBOX")
@@ -200,13 +236,10 @@ class ImapProvider(EmailProvider):
                     "host": host,
                     "port": port,
                     "use_ssl": use_ssl,
-                    "mailbox": "INBOX"
+                    "mailbox": "INBOX",
                 }
 
-                credentials = {
-                    "username": username,
-                    "password": password
-                }
+                credentials = {"username": username, "password": password}
 
                 account = storage.upsert_account(
                     b4igo_user_id=account_id,
@@ -217,8 +250,10 @@ class ImapProvider(EmailProvider):
                     config=config,
                 )
 
-                if account is None: return "Failed to create IMAP connector"
-            else: return "User context not available for connector creation"
+                if account is None:
+                    return "Failed to create IMAP connector"
+            else:
+                return "User context not available for connector creation"
 
             return ""
         except Exception as exc:
@@ -233,14 +268,19 @@ class GmailProvider(EmailProvider):
         a placeholder record. Another team can swap in Gmail API calls while
         keeping the same pull interface.
     """
+
     def pull(self, account: LinkedAccount) -> list[dict[str, Any]]:
         from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
 
-        token = account.credentials.get("token") or account.credentials.get("access_token")
+        token = account.credentials.get("token") or account.credentials.get(
+            "access_token"
+        )
         refresh_token = account.credentials.get("refresh_token")
         if not token and not refresh_token:
-            raise ValueError("Gmail account requires token/access_token or refresh_token")
+            raise ValueError(
+                "Gmail account requires token/access_token or refresh_token"
+            )
 
         creds = Credentials(
             token=token,
@@ -256,18 +296,26 @@ class GmailProvider(EmailProvider):
         query = f"after:{int(since.timestamp())}"
         max_results = int(account.config.get("max_results", 50))
 
-        listed = service.users().messages().list(
-            userId="me",
-            q=query,
-            maxResults=max_results,
-        ).execute()
+        listed = (
+            service.users()
+            .messages()
+            .list(
+                userId="me",
+                q=query,
+                maxResults=max_results,
+            )
+            .execute()
+        )
 
         messages = listed.get("messages", [])
         out: list[dict[str, Any]] = []
         for m in messages:
-            full = service.users().messages().get(
-                userId="me", id=m["id"], format="full"
-            ).execute()
+            full = (
+                service.users()
+                .messages()
+                .get(userId="me", id=m["id"], format="full")
+                .execute()
+            )
 
             headers = {
                 h.get("name", "").lower(): h.get("value", "")
@@ -285,16 +333,17 @@ class GmailProvider(EmailProvider):
 
             snippet = full.get("snippet", "")
 
-            out.append({
-                "provider": "gmail",
-                "accountId": account.id,
-                "emailAddress": account.email_address,
-                "subject": subject,
-                "body": snippet,
-                "receivedAt": received_at,
-                "metadata": {"from": sender, "gmailMessageId": full.get("id")},
-            })
-
+            out.append(
+                {
+                    "provider": "gmail",
+                    "accountId": account.id,
+                    "emailAddress": account.email_address,
+                    "subject": subject,
+                    "body": snippet,
+                    "receivedAt": received_at,
+                    "metadata": {"from": sender, "gmailMessageId": full.get("id")},
+                }
+            )
 
         return out
 
@@ -303,7 +352,9 @@ class GmailProvider(EmailProvider):
         account_id = kwargs.get("account_id")
         storage: AccountStorage = kwargs.get("storage")
         client_secrets_file = kwargs.get("client_secrets_file", "client_secrets.json")
-        redirect_uri = kwargs.get("redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback")
+        redirect_uri = kwargs.get(
+            "redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback"
+        )
         connector_name = kwargs.get("connector_name")
 
         if not account_id or not storage:
@@ -311,10 +362,13 @@ class GmailProvider(EmailProvider):
 
         # Cleanup old sessions (older than 1 hour)
         with storage._get_connection() as conn:
-            conn.execute("DELETE FROM gmail_oauth_sessions WHERE created_at < datetime('now', '-1 hour')")
+            conn.execute(
+                "DELETE FROM gmail_oauth_sessions WHERE created_at < datetime('now', '-1 hour')"
+            )
 
         # Generate URL and state
         from google_auth_oauthlib.flow import Flow
+
         flow = Flow.from_client_secrets_file(
             client_secrets_file,
             scopes=["https://www.googleapis.com/auth/gmail.readonly"],
@@ -331,7 +385,7 @@ class GmailProvider(EmailProvider):
             b4igo_user_id=account_id,
             code_verifier=flow.code_verifier,
             connector_name=connector_name,
-            status="pending"
+            status="pending",
         )
 
         return [
@@ -345,16 +399,28 @@ class GmailProvider(EmailProvider):
             )
         ]
 
-    def CallFunction(self, function_name: str, steps: list[EmailSetupStep], account_id: str, storage: AccountStorage) -> str:
+    def CallFunction(
+        self,
+        function_name: str,
+        steps: list[EmailSetupStep],
+        account_id: str,
+        storage: AccountStorage,
+    ) -> str:
         """Validate supported callback hooks for generic setup orchestration."""
         raise ValueError(f"Unknown function name: {function_name}")
 
-    def HandleCallback(self, request_args: dict[str, Any], storage: AccountStorage) -> str:
+    def HandleCallback(
+        self, request_args: dict[str, Any], storage: AccountStorage
+    ) -> str:
         """Handle OAuth callback from Google."""
         state = request_args.get("state")
         auth_code = request_args.get("code")
-        client_secrets_file = request_args.get("client_secrets_file", "client_secrets.json")
-        redirect_uri = request_args.get("redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback")
+        client_secrets_file = request_args.get(
+            "client_secrets_file", "client_secrets.json"
+        )
+        redirect_uri = request_args.get(
+            "redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback"
+        )
 
         if not state or not auth_code:
             if state:
@@ -367,6 +433,7 @@ class GmailProvider(EmailProvider):
 
         try:
             from google_auth_oauthlib.flow import Flow
+
             flow = Flow.from_client_secrets_file(
                 client_secrets_file,
                 scopes=["https://www.googleapis.com/auth/gmail.readonly"],
@@ -375,7 +442,7 @@ class GmailProvider(EmailProvider):
             )
             flow.code_verifier = session.code_verifier
             flow.fetch_token(code=auth_code)
-            
+
             creds_data = flow.credentials
             credentials = {
                 "token": creds_data.token,
@@ -389,6 +456,7 @@ class GmailProvider(EmailProvider):
             # Resolve email address
             from google.oauth2.credentials import Credentials
             from googleapiclient.discovery import build
+
             creds = Credentials(
                 token=credentials.get("token"),
                 refresh_token=credentials.get("refresh_token"),
@@ -415,7 +483,7 @@ class GmailProvider(EmailProvider):
                     b4igo_user_id=session.b4igo_user_id,
                     code_verifier=session.code_verifier,
                     connector_name=session.connector_name,
-                    status="success"
+                    status="success",
                 )
                 return ""
             else:
@@ -424,7 +492,7 @@ class GmailProvider(EmailProvider):
                     b4igo_user_id=session.b4igo_user_id,
                     code_verifier=session.code_verifier,
                     connector_name=session.connector_name,
-                    status="error"
+                    status="error",
                 )
                 return "Failed to upsert Gmail account"
 
@@ -434,6 +502,6 @@ class GmailProvider(EmailProvider):
                 b4igo_user_id=session.b4igo_user_id,
                 code_verifier=session.code_verifier,
                 connector_name=session.connector_name,
-                status="error"
+                status="error",
             )
             return f"OAuth exchange failed: {exc}"

@@ -111,5 +111,6 @@ class Database:
             )
             return cursor.fetchone() is not None
 
+
 # Global database instance
 db = Database()

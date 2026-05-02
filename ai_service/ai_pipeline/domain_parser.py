@@ -8,11 +8,8 @@ from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
 from ai_service.ai_pipeline.domain_classifier import Domain
-from shared.schemas import (
-    schemas,
-)
+from shared.schemas import legal_schemas, personal_schemas, schemas
 from shared.schemas.schema_prompter import SchemaPrompter
-from shared.schemas import legal_schemas, personal_schemas
 
 _DOMAIN_MODULES = {
     "health": schemas,

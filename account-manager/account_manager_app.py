@@ -40,7 +40,9 @@ def seed_user():
     if not username or not password:
         return jsonify({"error": "Missing required fields: username, password"}), 400
 
-    user = service.seed_user(username=str(username), password=str(password), role=str(role))
+    user = service.seed_user(
+        username=str(username), password=str(password), role=str(role)
+    )
     return jsonify(user), 201
 
 
@@ -149,7 +151,7 @@ def check_oauth_status(state_id: str):
     # We do NOT require internal auth here typically if the frontend polls directly,
     # but the frontend proxies through app.py which does not send the token or does it?
     # Actually wait, app.py forwards requests to `5100`. The frontend calls app.py, which calls account_manager_app.py.
-    # We'll allow this endpoint to be checked just like other endpoints. Wait, frontend calls `app.py`. 
+    # We'll allow this endpoint to be checked just like other endpoints. Wait, frontend calls `app.py`.
     # Does app.py have a `/api/providers/status/<state_id>` route? No, we will need to add it to app.py too.
     auth_error = _validate_internal_auth()
     if auth_error:
@@ -174,7 +176,9 @@ def get_provider_setup(provider: str):
     if not b4igo_user_id:
         return jsonify({"error": "Missing required fields: b4igoUserId"}), 400
 
-    client_secrets_file = os.environ.get("B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json")
+    client_secrets_file = os.environ.get(
+        "B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json"
+    )
 
     steps = service.get_provider_setup_steps(
         provider=provider,
@@ -202,7 +206,9 @@ def run_provider_step_callback(provider: str, function_name: str):
     if not isinstance(steps, list):
         return jsonify({"error": "Validation error"}), 400
 
-    result = service.run_provider_setup_callback(provider, function_name, steps, b4igo_user_id)
+    result = service.run_provider_setup_callback(
+        provider, function_name, steps, b4igo_user_id
+    )
     status = 200 if result.get("success") else 400
     return jsonify(result), status
 
@@ -211,10 +217,12 @@ def run_provider_step_callback(provider: str, function_name: str):
 def complete_provider_oauth(provider: str):
     """Complete provider OAuth callback and upsert linked account."""
     # Do NOT validate internal auth here. Google redirects directly here via the user's browser popup.
-    
+
     # query parameters from GET
     request_args = request.args.to_dict()
-    client_secrets_file = os.environ.get("B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json")
+    client_secrets_file = os.environ.get(
+        "B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json"
+    )
 
     try:
         error_msg = service.handle_oauth_callback(
@@ -225,12 +233,15 @@ def complete_provider_oauth(provider: str):
         if error_msg:
             logger.error("OAuth callback failed for %s: %s", provider, error_msg)
             return f"<h1>Error</h1><p>{error_msg}</p>", 400
-            
+
     except Exception as exc:
         logger.error("Failed to complete provider OAuth: %s", exc)
         return "<h1>Server Error</h1><p>Failed to complete authorization</p>", 500
 
-    return "<script>window.close()</script><h1>Success</h1><p>You can close this window.</p>", 200
+    return (
+        "<script>window.close()</script><h1>Success</h1><p>You can close this window.</p>",
+        200,
+    )
 
 
 @app.route("/api/pull", methods=["POST"])

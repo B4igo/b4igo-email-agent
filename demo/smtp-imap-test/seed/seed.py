@@ -104,7 +104,6 @@ AUTOMATED_EMAILS = [
         "Questions? Call us at (555) 444-7890.\n\n"
         "PetVet Animal Hospital",
     ),
-
     # --- Shipping / delivery ---
     (
         "FedEx",
@@ -132,7 +131,6 @@ AUTOMATED_EMAILS = [
         "Track your package on Amazon.com under Your Orders.\n\n"
         "Thank you for shopping with us!",
     ),
-
     # --- Password reset / security ---
     (
         "GitHub",
@@ -159,7 +157,6 @@ AUTOMATED_EMAILS = [
         "security settings immediately.\n\n"
         "— Google Accounts Team",
     ),
-
     # --- Newsletters / marketing ---
     (
         "Spotify",
@@ -185,7 +182,6 @@ AUTOMATED_EMAILS = [
         "See who's looking at your profile on LinkedIn.\n\n"
         "LinkedIn Notifications",
     ),
-
     # --- Banking / finance ---
     (
         "Chase Bank",
@@ -205,13 +201,12 @@ AUTOMATED_EMAILS = [
         "venmo@venmo",
         "You paid Alex $24.50",
         "You paid Alex R. $24.50.\n\n"
-        "Note: \"Pizza last night\"\n"
+        'Note: "Pizza last night"\n'
         "Date: March 15, 2026\n"
         "Funded by: Venmo balance\n\n"
         "Questions? Visit the Venmo Help Center.\n\n"
         "— Venmo",
     ),
-
     # --- Utility / services ---
     (
         "Pacific Gas & Electric",
@@ -241,7 +236,6 @@ AUTOMATED_EMAILS = [
         "Choose your preference by replying to this email or visiting hermes.com/redelivery.\n\n"
         "Hermes Delivery Team",
     ),
-
     # --- Calendar / events ---
     (
         "Eventbrite",
@@ -354,7 +348,9 @@ def send_test_emails(accounts: list[dict]):
                     msg["Subject"] = f"{SUBJECTS[subject_idx % len(SUBJECTS)]} (#{i+1})"
                     msg.attach(MIMEText(BODIES[body_idx % len(BODIES)], "plain"))
 
-                    smtp.sendmail(sender["email"], [recipient["email"]], msg.as_string())
+                    smtp.sendmail(
+                        sender["email"], [recipient["email"]], msg.as_string()
+                    )
                     total += 1
                     subject_idx += 1
                     body_idx += 1

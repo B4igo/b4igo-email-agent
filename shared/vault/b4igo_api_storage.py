@@ -1,4 +1,4 @@
-"""HTTP-backed vault storage adapter for B4iGO API integration."""
+"""GraphQL-backed vault storage adapter for B4iGO API integration."""
 
 import os
 from typing import Any, Optional
@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from shared.vault.storage import VAULT_RECORD_TYPES
 
-# Field name used to extract the newly created record's ID from the API response.
+# Field name used to extract the newly created record's ID from the GraphQL response.
 # Most types return "id"; medication returns "medicationId".
 _RESPONSE_ID_FIELD: dict[str, str] = {
     "doctor": "id",
@@ -15,17 +15,54 @@ _RESPONSE_ID_FIELD: dict[str, str] = {
     "medical_history": "id",
 }
 
-# Field name used for the record ID in delete/update request bodies, per record type.
+# Mutation names per record type
+_CREATE_MUTATIONS: dict[str, str] = {
+    "doctor": "CreateFamilyDoctor",
+    "insurance": "CreateHealthInsurance",
+    "medication": "CreateMedicationAllergy",
+    "medical_history": "CreateMedicalHistory",
+}
+
+_UPDATE_MUTATIONS: dict[str, str] = {
+    "doctor": "UpdateFamilyDoctor",
+    "insurance": "UpdateHealthInsurance",
+    "medication": "UpdateMedicationAndAllergies",
+    "medical_history": "UpdateMedicalHistory",
+}
+
+_DELETE_MUTATIONS: dict[str, str] = {
+    "doctor": "DeleteDoctorDetails",
+    "insurance": "DeleteHealthInsurance",
+    "medication": "DeleteMedicationAndAllergies",
+    "medical_history": "DeleteMedicalHistory",
+}
+
+_READ_QUERIES: dict[str, str] = {
+    "doctor": "getAllDoctors",
+    "insurance": "getHealthInsurancesByUserId",
+    "medication": "getMedicationsByUserId",
+    "medical_history": "getAllMedicalHistory",
+}
+
+# Response array field names per record type
+_RESPONSE_ARRAY_FIELD: dict[str, str] = {
+    "doctor": "doctor",
+    "insurance": "healthInsurances",
+    "medication": "data",
+    "medical_history": "medicalHistory",
+}
+
+# ID field names in returned records per type
 _RECORD_ID_FIELD: dict[str, str] = {
     "doctor": "doctorId",
     "insurance": "insuranceId",
-    "medication": "recordId",
-    "medical_history": "historyId",
+    "medication": "medicationId",
+    "medical_history": "medicalHistoryId",
 }
 
 
 class B4igoVaultApiStorage:
-    """Vault storage implementation backed by the B4iGO API."""
+    """Vault storage implementation backed by the B4iGO GraphQL API."""
 
     def __init__(
         self,
@@ -34,15 +71,18 @@ class B4igoVaultApiStorage:
         timeout_seconds: Optional[float] = None,
         session: Optional[Any] = None,
     ):
-        """Initialize API adapter and reusable HTTP session."""
+        """Initialize GraphQL API adapter and reusable HTTP session.
+
+        Args:
+            base_url: Base URL for the B4iGO API (e.g. https://api.b4igo.com).
+            api_key: API key for authentication (Bearer token).
+            timeout_seconds: Request timeout in seconds.
+            session: Optional requests.Session for dependency injection.
+        """
         try:
             import requests as requests_lib
-            from requests.adapters import HTTPAdapter
-            from urllib3.util.retry import Retry
         except ModuleNotFoundError:
             requests_lib = None  # type: ignore[assignment]
-            HTTPAdapter = None  # type: ignore[assignment,misc]
-            Retry = None  # type: ignore[assignment,misc]
 
         self.base_url = (base_url or os.environ.get("B4IGO_API_BASE_URL") or "").rstrip(
             "/"
@@ -51,15 +91,7 @@ class B4igoVaultApiStorage:
         self.timeout_seconds = timeout_seconds or float(
             os.environ.get("B4IGO_API_TIMEOUT_SECS", "10")
         )
-        self._records_endpoint = os.environ.get(
-            "B4IGO_API_RECORDS_ENDPOINT", "/vault/records"
-        )
-        self._record_type_endpoints = {
-            "doctor": os.environ.get("B4IGO_API_DOCTOR_ENDPOINT", ""),
-            "insurance": os.environ.get("B4IGO_API_INSURANCE_ENDPOINT", ""),
-            "medication": os.environ.get("B4IGO_API_MEDICATION_ENDPOINT", ""),
-            "medical_history": os.environ.get("B4IGO_API_MEDICAL_HISTORY_ENDPOINT", ""),
-        }
+        self._graphql_endpoint = os.environ.get("B4IGO_GRAPHQL_ENDPOINT", "/graphql")
 
         if session is None and requests_lib is None:
             raise RuntimeError(
@@ -72,233 +104,622 @@ class B4igoVaultApiStorage:
             self._session.headers.update({"Authorization": f"Bearer {self.api_key}"})
         self._session.headers.update({"Content-Type": "application/json"})
 
-        if Retry is not None and HTTPAdapter is not None:
-            retry = Retry(
-                total=2,
-                backoff_factor=0.2,
-                status_forcelist=[429, 500, 502, 503, 504],
-                allowed_methods=frozenset(["GET", "PUT", "PATCH", "DELETE"]),
-            )
-            adapter = HTTPAdapter(max_retries=retry)
-            self._session.mount("http://", adapter)
-            self._session.mount("https://", adapter)
+    def _request(self, query: str, variables: dict[str, Any]) -> Optional[Any]:
+        """Execute a GraphQL request and return the data portion of the response.
 
-    def _build_url(self, path: str) -> str:
-        if not self.base_url:
-            return path
-        return f"{self.base_url}{path}"
+        Args:
+            query: GraphQL query or mutation string.
+            variables: Variables dict to send with the query.
 
-    def _endpoint_for_type(self, record_type: str) -> str:
-        if record_type in VAULT_RECORD_TYPES and self._record_type_endpoints.get(
-            record_type
-        ):
-            return self._record_type_endpoints[record_type]
-        return self._records_endpoint
-
-    def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: Optional[dict[str, Any]] = None,
-        json_data: Optional[dict[str, Any]] = None,
-    ) -> Optional[Any]:
+        Returns:
+            The 'data' portion of the GraphQL response, or None on error.
+        """
+        url = f"{self.base_url}{self._graphql_endpoint}" if self.base_url else ""
         headers = {"X-Correlation-ID": str(uuid4())}
+        body = {"query": query, "variables": variables}
+
         try:
-            response = self._session.request(
-                method=method,
-                url=self._build_url(path),
-                params=params,
-                json=json_data,
+            response = self._session.post(
+                url,
+                json=body,
                 headers=headers,
                 timeout=self.timeout_seconds,
             )
         except Exception:
             return None
-        return response
 
-    def _safe_json(self, response: Any) -> Any:
         try:
-            return response.json()
+            json_response = response.json()
         except ValueError:
-            return {}
+            return None
 
-    def _normalize_record(
-        self, raw: dict[str, Any], fallback_username: str, fallback_type: Optional[str]
-    ) -> dict[str, Any]:
-        payload = raw.get("payload") or raw.get("data") or {}
-        if not isinstance(payload, dict):
-            payload = {}
-        return {
-            "id": raw.get("id"),
-            "username": raw.get("username", fallback_username),
-            "record_type": raw.get("record_type", fallback_type),
-            "payload": payload,
-        }
+        # GraphQL returns errors in 'errors' key, even with HTTP 200
+        if "errors" in json_response and json_response["errors"]:
+            return None
 
-    # --- Per-type create payload builders ---
+        return json_response.get("data")
 
-    def _doctor_create_payload(
+    def _graphql_success(self, data: Optional[Any], mutation_name: str) -> bool:
+        """Check if a GraphQL mutation was successful.
+
+        Args:
+            data: The 'data' portion of the GraphQL response.
+            mutation_name: Name of the mutation to check.
+
+        Returns:
+            True if the mutation succeeded, False otherwise.
+        """
+        if data is None:
+            return False
+        mutation_result = data.get(mutation_name, {})
+        return bool(mutation_result.get("success"))
+
+    def _graphql_id(
+        self, data: Optional[Any], mutation_name: str, id_field: str
+    ) -> Optional[int]:
+        """Extract the record ID from a GraphQL create mutation response.
+
+        Args:
+            data: The 'data' portion of the GraphQL response.
+            mutation_name: Name of the mutation.
+            id_field: Field name containing the ID in the response.
+
+        Returns:
+            The record ID, or None if not found or mutation failed.
+        """
+        if data is None:
+            return None
+        mutation_result = data.get(mutation_name, {})
+        if not mutation_result.get("success"):
+            return None
+        return mutation_result.get(id_field)
+
+    # --- Per-type create variable builders ---
+
+    def _doctor_create_variables(
         self, username: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """Map internal Doctor schema to CreateFamilyDoctor API fields."""
+        """Map internal Doctor schema to CreateFamilyDoctor variables.
+
+        Args:
+            username: User ID for the record.
+            payload: Doctor schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
         return {
-            # TODO: userId may differ from local username; resolve via GetUserId API
             "userId": username,
             "doctorName": payload.get("doctor_name", ""),
-            "typeName": payload.get("type") or "General",
-            # TODO: resolve typeId via getTypeOfDoctor API; 0 is a placeholder
-            "typeId": 0,
-            "contactInformation": payload.get("location", ""),
-            "city": payload.get("location", ""),
-            "stateName": "",
-            "countryName": "",
-            "markAsImportant": False,
-            "createdBy": username,
+            "contact": payload.get("location", ""),
         }
 
-    def _insurance_create_payload(
+    def _insurance_create_variables(
         self, username: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """Map internal Insurance schema to CreateHealthInsurance API fields."""
+        """Map internal Insurance schema to CreateHealthInsurance variables.
+
+        Args:
+            username: User ID for the record.
+            payload: Insurance schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
         return {
             "userId": username,
-            "memberName": username,
-            "memberId": "",
-            "groupId": "",
-            # TODO: resolve InsuranceTypeId via getTypeOfHealthInsurance API
-            "InsuranceTypeId": 0,
-            "othersValue": payload.get("type_of_health_insurance", ""),
-            "markAsImportant": False,
-            "createdBy": username,
+            "insuranceName": payload.get("type_of_health_insurance", ""),
+            "policyNumber": "",
+            "provider": "",
         }
 
-    def _medication_create_payload(
+    def _medication_create_variables(
         self, username: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """Map internal Medication schema to CreateMedicationAllergy API fields."""
+        """Map internal Medication schema to CreateMedicationAllergy variables.
+
+        Args:
+            username: User ID for the record.
+            payload: Medication schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
         return {
             "userId": username,
-            "medicine_name": payload.get("name_of_medicine", ""),
-            "purpose": payload.get("purpose", ""),
-            "start_date": payload.get("date", ""),
-            "markAsImportant": False,
-            "createdBy": username,
+            "medication": payload.get("name_of_medicine", ""),
+            "allergy": payload.get("side_effect", ""),
         }
 
-    def _medical_history_create_payload(
+    def _medical_history_create_variables(
         self, username: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """Map internal MedicalHistory schema to CreateMedicalHistory API fields."""
+        """Map internal MedicalHistory schema to CreateMedicalHistory variables.
+
+        Args:
+            username: User ID for the record.
+            payload: MedicalHistory schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
         disease = payload.get("disease", "")
         description = payload.get("description", "")
         history = f"{disease} - {description}" if description else disease
         return {
             "userId": username,
             "history": history,
-            "recordDate": payload.get("date", ""),
-            "markAsImportant": False,
             "createdBy": username,
         }
 
-    def _create_payload_for_type(
+    def _create_variables_for_type(
         self, record_type: str, username: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
+        """Build create mutation variables for the given record type.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+            username: User ID for the record.
+            payload: Schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
         builders = {
-            "doctor": self._doctor_create_payload,
-            "insurance": self._insurance_create_payload,
-            "medication": self._medication_create_payload,
-            "medical_history": self._medical_history_create_payload,
+            "doctor": self._doctor_create_variables,
+            "insurance": self._insurance_create_variables,
+            "medication": self._medication_create_variables,
+            "medical_history": self._medical_history_create_variables,
         }
         builder = builders.get(record_type)
         if builder:
             return builder(username, payload)
-        return {"userId": username, **payload}
+        return {"userId": username}
 
-    # --- Per-type update payload builders ---
+    # --- Per-type update variable builders ---
 
-    def _doctor_update_payload(
-        self, id: int, payload: dict[str, Any], username: str
+    def _doctor_update_variables(
+        self, record_id: int, payload: dict[str, Any], username: str
     ) -> dict[str, Any]:
-        """Map Doctor fields to UpdateFamilyDoctor API body."""
+        """Map Doctor fields to UpdateFamilyDoctor variables.
+
+        Args:
+            record_id: Doctor ID to update.
+            payload: Doctor schema field dict.
+            username: User ID.
+
+        Returns:
+            GraphQL variables dict.
+        """
         return {
-            "doctorId": id,
             "userId": username,
+            "doctorId": record_id,
             "doctorName": payload.get("doctor_name", ""),
-            "typeName": payload.get("type") or "General",
-            "typeId": 0,
-            "contactInformation": payload.get("location", ""),
-            "city": payload.get("location", ""),
-            "stateName": "",
-            "countryName": "",
-            "markAsImportant": False,
+            "contact": payload.get("location", ""),
         }
 
-    def _insurance_update_payload(
-        self, id: int, payload: dict[str, Any], username: str
+    def _insurance_update_variables(
+        self, record_id: int, payload: dict[str, Any], username: str
     ) -> dict[str, Any]:
-        """Map Insurance fields to UpdateHealthInsurance API body."""
+        """Map Insurance fields to UpdateHealthInsurance variables.
+
+        Args:
+            record_id: Insurance ID to update.
+            payload: Insurance schema field dict.
+            username: User ID.
+
+        Returns:
+            GraphQL variables dict.
+        """
         return {
-            "insuranceId": id,
             "userId": username,
+            "insuranceId": record_id,
             "insuranceName": payload.get("type_of_health_insurance", ""),
-            "InsuranceTypeId": 0,
-            "markAsImportant": False,
+            "policyNumber": "",
+            "provider": "",
         }
 
-    def _medication_update_payload(
-        self, id: int, payload: dict[str, Any], username: str
+    def _medication_update_variables(
+        self, record_id: int, payload: dict[str, Any], username: str
     ) -> dict[str, Any]:
-        """Map Medication fields to UpdateMedicationAllergy API body."""
+        """Map Medication fields to UpdateMedicationAndAllergies variables.
+
+        Args:
+            record_id: Medication record ID to update.
+            payload: Medication schema field dict.
+            username: User ID.
+
+        Returns:
+            GraphQL variables dict.
+        """
         return {
-            "recordId": id,
             "userId": username,
+            "recordId": record_id,
             "medication": payload.get("name_of_medicine", ""),
-            "purpose": payload.get("purpose", ""),
-            "start_date": payload.get("date", ""),
+            "allergy": payload.get("side_effect", ""),
         }
 
-    def _medical_history_update_payload(
-        self, id: int, payload: dict[str, Any], username: str
+    def _medical_history_update_variables(
+        self, record_id: int, payload: dict[str, Any], username: str
     ) -> dict[str, Any]:
-        """Map MedicalHistory fields to UpdateMedicalHistory API body."""
+        """Map MedicalHistory fields to UpdateMedicalHistory variables.
+
+        Args:
+            record_id: Medical history ID to update.
+            payload: MedicalHistory schema field dict.
+            username: User ID.
+
+        Returns:
+            GraphQL variables dict.
+        """
         disease = payload.get("disease", "")
         description = payload.get("description", "")
         history = f"{disease} - {description}" if description else disease
         return {
-            "historyId": id,
             "userId": username,
+            "historyId": record_id,
             "history": history,
-            "recordDate": payload.get("date", ""),
         }
 
-    def _update_payload_for_type(
-        self, record_type: str, id: int, payload: dict[str, Any], username: str
+    def _update_variables_for_type(
+        self, record_type: str, record_id: int, payload: dict[str, Any], username: str
     ) -> dict[str, Any]:
+        """Build update mutation variables for the given record type.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+            record_id: Record ID to update.
+            payload: New field dict.
+            username: User ID.
+
+        Returns:
+            GraphQL variables dict.
+        """
         builders = {
-            "doctor": self._doctor_update_payload,
-            "insurance": self._insurance_update_payload,
-            "medication": self._medication_update_payload,
-            "medical_history": self._medical_history_update_payload,
+            "doctor": self._doctor_update_variables,
+            "insurance": self._insurance_update_variables,
+            "medication": self._medication_update_variables,
+            "medical_history": self._medical_history_update_variables,
         }
         builder = builders.get(record_type)
         if builder:
-            return builder(id, payload, username)
-        id_field = _RECORD_ID_FIELD.get(record_type, "id")
-        return {id_field: id, "userId": username, **payload}
+            return builder(record_id, payload, username)
+        return {"userId": username}
 
-    def _delete_payload_for_type(
-        self, record_type: str, id: int, username: str
+    def _delete_variables_for_type(
+        self, record_type: str, record_id: int, username: str
     ) -> dict[str, Any]:
+        """Build delete mutation variables for the given record type.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+            record_id: Record ID to delete.
+            username: User ID.
+
+        Returns:
+            GraphQL variables dict.
+        """
+        id_field_map = {
+            "doctor": "doctorId",
+            "insurance": "insuranceId",
+            "medication": "recordId",
+            "medical_history": "historyId",
+        }
+        id_field = id_field_map.get(record_type, "id")
+        return {"userId": username, id_field: record_id}
+
+    # --- GraphQL mutation/query builders ---
+
+    def _build_create_mutation(self, record_type: str) -> str:
+        """Build the GraphQL mutation string for creating a record.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+
+        Returns:
+            GraphQL mutation string.
+        """
+        mutation_name = _CREATE_MUTATIONS.get(record_type, "")
+        id_field = _RESPONSE_ID_FIELD.get(record_type, "id")
+
+        if record_type == "doctor":
+            return f"""
+mutation {mutation_name}($userId: String!, $doctorName: String!, $contact: String) {{
+  {mutation_name}(userId: $userId, doctorName: $doctorName, contact: $contact) {{
+    code
+    success
+    message
+    error
+    {id_field}
+  }}
+}}
+"""
+        elif record_type == "insurance":
+            return (
+                "mutation "
+                + mutation_name
+                + "($userId: String!, $insuranceName: String!, "
+                "$policyNumber: String!, $provider: String) { "
+                + mutation_name
+                + "(userId: $userId, insuranceName: $insuranceName, "
+                "policyNumber: $policyNumber, provider: $provider) { "
+                "code success message error " + id_field + " } }"
+            )
+        elif record_type == "medication":
+            return f"""
+mutation {mutation_name}($userId: String!, $medication: String!, $allergy: String!) {{
+  {mutation_name}(userId: $userId, medication: $medication, allergy: $allergy) {{
+    code
+    success
+    message
+    error
+    {id_field}
+  }}
+}}
+"""
+        elif record_type == "medical_history":
+            return f"""
+mutation {mutation_name}($userId: String!, $history: String!, $createdBy: String) {{
+  {mutation_name}(userId: $userId, history: $history, createdBy: $createdBy) {{
+    code
+    success
+    message
+    error
+    {id_field}
+  }}
+}}
+"""
+        return ""
+
+    def _build_update_mutation(self, record_type: str) -> str:
+        """Build the GraphQL mutation string for updating a record.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+
+        Returns:
+            GraphQL mutation string.
+        """
+        mutation_name = _UPDATE_MUTATIONS.get(record_type, "")
+
+        if record_type == "doctor":
+            return (
+                "mutation " + mutation_name + "($userId: String!, $doctorId: Int!, "
+                "$doctorName: String!, $contact: String) { "
+                + mutation_name
+                + "(userId: $userId, doctorId: $doctorId, "
+                "doctorName: $doctorName, contact: $contact) { "
+                "code success message error } }"
+            )
+        elif record_type == "insurance":
+            return (
+                "mutation " + mutation_name + "($userId: String!, $insuranceId: Int!, "
+                "$insuranceName: String, $policyNumber: String, $provider: String) { "
+                + mutation_name
+                + "(userId: $userId, insuranceId: $insuranceId, "
+                "insuranceName: $insuranceName, policyNumber: $policyNumber, "
+                "provider: $provider) { code success message error } }"
+            )
+        elif record_type == "medication":
+            return (
+                "mutation " + mutation_name + "($userId: String!, $recordId: Int!, "
+                "$medication: String, $allergy: String) { "
+                + mutation_name
+                + "(userId: $userId, recordId: $recordId, "
+                "medication: $medication, allergy: $allergy) { "
+                "code success message error } }"
+            )
+        elif record_type == "medical_history":
+            return f"""
+mutation {mutation_name}($userId: String!, $historyId: Int!, $history: String) {{
+  {mutation_name}(userId: $userId, historyId: $historyId, history: $history) {{
+    code
+    success
+    message
+    error
+  }}
+}}
+"""
+        return ""
+
+    def _build_delete_mutation(self, record_type: str) -> str:
+        """Build the GraphQL mutation string for deleting a record.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+
+        Returns:
+            GraphQL mutation string.
+        """
+        mutation_name = _DELETE_MUTATIONS.get(record_type, "")
+
+        if record_type == "doctor":
+            return f"""
+mutation {mutation_name}($userId: String!, $doctorId: Int!) {{
+  {mutation_name}(userId: $userId, doctorId: $doctorId) {{
+    code
+    success
+    message
+    error
+  }}
+}}
+"""
+        elif record_type == "insurance":
+            return f"""
+mutation {mutation_name}($userId: String!, $insuranceId: Int!) {{
+  {mutation_name}(userId: $userId, insuranceId: $insuranceId) {{
+    code
+    success
+    message
+    error
+  }}
+}}
+"""
+        elif record_type == "medication":
+            return f"""
+mutation {mutation_name}($userId: String!, $recordId: Int!) {{
+  {mutation_name}(userId: $userId, recordId: $recordId) {{
+    code
+    success
+    message
+    error
+  }}
+}}
+"""
+        elif record_type == "medical_history":
+            return f"""
+mutation {mutation_name}($userId: String!, $historyId: Int!) {{
+  {mutation_name}(userId: $userId, historyId: $historyId) {{
+    code
+    success
+    message
+    error
+  }}
+}}
+"""
+        return ""
+
+    def _build_read_query(self, record_type: str) -> str:
+        """Build the GraphQL query string for reading records.
+
+        Args:
+            record_type: One of doctor, insurance, medication, medical_history.
+
+        Returns:
+            GraphQL query string.
+        """
+        query_name = _READ_QUERIES.get(record_type, "")
+        array_field = _RESPONSE_ARRAY_FIELD.get(record_type, "data")
         id_field = _RECORD_ID_FIELD.get(record_type, "id")
-        return {id_field: id, "userId": username}
+
+        if record_type == "doctor":
+            return f"""
+query {query_name}($userId: String!) {{
+  {query_name}(userId: $userId) {{
+    code
+    success
+    message
+    error
+    {array_field} {{
+      {id_field}
+      userId
+      doctorName
+      contact
+    }}
+  }}
+}}
+"""
+        elif record_type == "insurance":
+            return f"""
+query {query_name}($userId: String!) {{
+  {query_name}(userId: $userId) {{
+    code
+    success
+    message
+    error
+    {array_field} {{
+      {id_field}
+      userId
+      insuranceTypeName
+      memberId
+      groupId
+    }}
+  }}
+}}
+"""
+        elif record_type == "medication":
+            return f"""
+query {query_name}($userId: String!) {{
+  {query_name}(userId: $userId) {{
+    code
+    success
+    message
+    error
+    {array_field} {{
+      {id_field}
+      userId
+      medicineName
+      purpose
+      sideEffect
+    }}
+  }}
+}}
+"""
+        elif record_type == "medical_history":
+            return f"""
+query {query_name}($userId: String!) {{
+  {query_name}(userId: $userId) {{
+    code
+    success
+    message
+    error
+    {array_field} {{
+      {id_field}
+      userId
+      recordTypeName
+      recordDate
+    }}
+  }}
+}}
+"""
+        return ""
+
+    def _normalize_record(
+        self,
+        raw: dict[str, Any],
+        record_type: str,
+        fallback_username: str,
+    ) -> dict[str, Any]:
+        """Normalize a raw GraphQL record to the internal format.
+
+        Args:
+            raw: Raw record dict from GraphQL response.
+            record_type: Record type for ID field lookup.
+            fallback_username: Username to use if not in record.
+
+        Returns:
+            Normalized record dict with id, username, record_type, payload.
+        """
+        id_field = _RECORD_ID_FIELD.get(record_type, "id")
+        record_id = raw.get(id_field) or raw.get("id")
+
+        # Build payload based on record type
+        if record_type == "doctor":
+            payload = {
+                "doctor_name": raw.get("doctorName", ""),
+                "location": raw.get("contact", ""),
+            }
+        elif record_type == "insurance":
+            payload = {
+                "type_of_health_insurance": raw.get("insuranceTypeName", ""),
+            }
+        elif record_type == "medication":
+            payload = {
+                "name_of_medicine": raw.get("medicineName", ""),
+                "purpose": raw.get("purpose", ""),
+                "side_effect": raw.get("sideEffect", ""),
+            }
+        elif record_type == "medical_history":
+            payload = {
+                "disease": raw.get("recordTypeName", ""),
+                "date": raw.get("recordDate", ""),
+            }
+        else:
+            payload = {}
+
+        return {
+            "id": record_id,
+            "username": raw.get("userId", fallback_username),
+            "record_type": record_type,
+            "payload": payload,
+        }
 
     # --- Public storage protocol methods ---
 
     def add_record(
         self, username: str, record_type: str, payload: dict[str, Any]
     ) -> Optional[int]:
-        """Create a new vault record via the B4iGO API.
+        """Create a new vault record via the B4iGO GraphQL API.
 
         Args:
             username: Owner of the record.
@@ -308,14 +729,19 @@ class B4igoVaultApiStorage:
         Returns:
             New record id, or None on failure.
         """
-        endpoint = self._endpoint_for_type(record_type)
-        body = self._create_payload_for_type(record_type, username, payload)
-        response = self._request("POST", endpoint, json_data=body)
-        if response is None or not (200 <= response.status_code < 300):
+        if record_type not in VAULT_RECORD_TYPES:
             return None
-        data = self._safe_json(response)
+
+        mutation = self._build_create_mutation(record_type)
+        if not mutation:
+            return None
+
+        variables = self._create_variables_for_type(record_type, username, payload)
+        data = self._request(mutation, variables)
+
+        mutation_name = _CREATE_MUTATIONS.get(record_type, "")
         id_field = _RESPONSE_ID_FIELD.get(record_type, "id")
-        return data.get(id_field)
+        return self._graphql_id(data, mutation_name, id_field)
 
     def get_records(
         self,
@@ -323,7 +749,7 @@ class B4igoVaultApiStorage:
         record_type: Optional[str] = None,
         id: Optional[int] = None,
     ) -> list[dict[str, Any]]:
-        """Fetch vault records for a user from the B4iGO API.
+        """Fetch vault records for a user from the B4iGO GraphQL API.
 
         Args:
             username: Owner to filter by.
@@ -333,22 +759,47 @@ class B4igoVaultApiStorage:
         Returns:
             List of normalized record dicts.
         """
-        endpoint = self._endpoint_for_type(record_type or "")
-        params: dict[str, Any] = {"userId": username}
-        if record_type:
-            params["record_type"] = record_type
-        if id is not None:
-            params["id"] = id
-        response = self._request("GET", endpoint, params=params)
-        if response is None or not (200 <= response.status_code < 300):
+        # If no record_type specified, fetch all types
+        if not record_type:
+            all_records: list[dict[str, Any]] = []
+            for rtype in VAULT_RECORD_TYPES:
+                all_records.extend(self.get_records(username, rtype, id))
+            return all_records
+
+        if record_type not in VAULT_RECORD_TYPES:
             return []
-        data = self._safe_json(response)
-        raw_list = data.get("records") or data.get("data") or []
+
+        query = self._build_read_query(record_type)
+        if not query:
+            return []
+
+        variables: dict[str, Any] = {"userId": username}
+        data = self._request(query, variables)
+
+        if data is None:
+            return []
+
+        query_name = _READ_QUERIES.get(record_type, "")
+        query_result = data.get(query_name, {})
+
+        if not query_result.get("success"):
+            return []
+
+        array_field = _RESPONSE_ARRAY_FIELD.get(record_type, "data")
+        raw_list = query_result.get(array_field, [])
+
         if not isinstance(raw_list, list):
             return []
-        return [
-            self._normalize_record(item, username, record_type) for item in raw_list
+
+        records = [
+            self._normalize_record(item, record_type, username) for item in raw_list
         ]
+
+        # Filter by id if specified
+        if id is not None:
+            records = [r for r in records if r.get("id") == id]
+
+        return records
 
     def update_record(
         self,
@@ -357,34 +808,50 @@ class B4igoVaultApiStorage:
         record_type: str = "",
         username: str = "",
     ) -> bool:
-        """Update a vault record via the B4iGO API.
+        """Update a vault record via the B4iGO GraphQL API.
 
         Args:
             id: Record id.
             payload: New field dict.
-            record_type: Record type (needed for correct endpoint/body mapping).
+            record_type: Record type (needed for correct mutation).
             username: Owner username.
 
         Returns:
             True if successful, False otherwise.
         """
-        endpoint = self._endpoint_for_type(record_type)
-        body = self._update_payload_for_type(record_type, id, payload, username)
-        response = self._request("PUT", endpoint, json_data=body)
-        return response is not None and 200 <= response.status_code < 300
+        if not record_type or record_type not in VAULT_RECORD_TYPES:
+            return False
+
+        mutation = self._build_update_mutation(record_type)
+        if not mutation:
+            return False
+
+        variables = self._update_variables_for_type(record_type, id, payload, username)
+        data = self._request(mutation, variables)
+
+        mutation_name = _UPDATE_MUTATIONS.get(record_type, "")
+        return self._graphql_success(data, mutation_name)
 
     def delete_record(self, id: int, record_type: str = "", username: str = "") -> bool:
-        """Delete a vault record via the B4iGO API.
+        """Delete a vault record via the B4iGO GraphQL API.
 
         Args:
             id: Record id.
-            record_type: Record type (needed for correct body field name).
+            record_type: Record type (needed for correct mutation).
             username: Owner username.
 
         Returns:
             True if successful, False otherwise.
         """
-        endpoint = self._endpoint_for_type(record_type)
-        body = self._delete_payload_for_type(record_type, id, username)
-        response = self._request("DELETE", endpoint, json_data=body)
-        return response is not None and 200 <= response.status_code < 300
+        if not record_type or record_type not in VAULT_RECORD_TYPES:
+            return False
+
+        mutation = self._build_delete_mutation(record_type)
+        if not mutation:
+            return False
+
+        variables = self._delete_variables_for_type(record_type, id, username)
+        data = self._request(mutation, variables)
+
+        mutation_name = _DELETE_MUTATIONS.get(record_type, "")
+        return self._graphql_success(data, mutation_name)
