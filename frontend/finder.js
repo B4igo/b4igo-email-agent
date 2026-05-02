@@ -8,7 +8,7 @@ function checkTokenAndSend() {
 
         chrome.runtime.sendMessage({
             type: "B4IGO_KEYS_FOUND",
-            token: keys
+            keys: keys
         });
 
         return true;
