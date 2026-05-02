@@ -6,35 +6,42 @@ from uuid import uuid4
 
 from shared.vault.storage import VAULT_RECORD_TYPES
 
-# Field name used to extract the newly created record's ID from the GraphQL response.
-# Most types return "id"; medication returns "medicationId".
-_RESPONSE_ID_FIELD: dict[str, str] = {
-    "doctor": "id",
-    "insurance": "id",
-    "medication": "medicationId",
-    "medical_history": "id",
-}
-
 # Mutation names per record type
 _CREATE_MUTATIONS: dict[str, str] = {
-    "doctor": "CreateFamilyDoctor",
-    "insurance": "CreateHealthInsurance",
-    "medication": "CreateMedicationAllergy",
-    "medical_history": "CreateMedicalHistory",
+    "doctor": "createFamilyDoctor",
+    "insurance": "createHealthInsurance",
+    "medication": "createMedicationAndAllergy",
+    "medical_history": "createMedicalHistories",
 }
 
 _UPDATE_MUTATIONS: dict[str, str] = {
-    "doctor": "UpdateFamilyDoctor",
-    "insurance": "UpdateHealthInsurance",
-    "medication": "UpdateMedicationAndAllergies",
-    "medical_history": "UpdateMedicalHistory",
+    "doctor": "updateFamilyDoctor",
+    "insurance": "updateHealthInsurance",
+    "medication": "updateMedicationAndAllergies",
+    "medical_history": "updateMedicalHistory",
 }
 
 _DELETE_MUTATIONS: dict[str, str] = {
-    "doctor": "DeleteDoctorDetails",
-    "insurance": "DeleteHealthInsurance",
-    "medication": "DeleteMedicationAndAllergies",
-    "medical_history": "DeleteMedicalHistory",
+    "doctor": "deleteDoctorDetails",
+    "insurance": "deleteHealthInsurance",
+    "medication": "deleteMedicationAllergies",
+    "medical_history": "deleteMedicalHistory",
+}
+
+# Input type names for create mutations
+_CREATE_INPUT_TYPES: dict[str, str] = {
+    "doctor": "createFamilyDoctorInput",
+    "insurance": "CreateHealthInsuranceInput",
+    "medication": "createMedicationAndAllergyInput",
+    "medical_history": "CreateMedicalHistoriesInput",
+}
+
+# Input type names for update mutations
+_UPDATE_INPUT_TYPES: dict[str, str] = {
+    "doctor": "UpdateFamilyDoctorInput",
+    "insurance": "UpdateHealthInsuranceInput",
+    "medication": "UpdateMedicationAndAllergiesInput",
+    "medical_history": "UpdateMedicalHistoryInput",
 }
 
 _READ_QUERIES: dict[str, str] = {
@@ -50,6 +57,12 @@ _RESPONSE_ARRAY_FIELD: dict[str, str] = {
     "insurance": "healthInsurances",
     "medication": "data",
     "medical_history": "medicalHistory",
+}
+
+# Doctor create response nests the ID inside a 'data' object as 'doctorId'.
+# All other types return 'id' flat on the response.
+_NESTED_RESPONSE_ID_FIELD: dict[str, str] = {
+    "doctor": "doctorId",
 }
 
 # ID field names in returned records per type
@@ -155,14 +168,14 @@ class B4igoVaultApiStorage:
         return bool(mutation_result.get("success"))
 
     def _graphql_id(
-        self, data: Optional[Any], mutation_name: str, id_field: str
+        self, data: Optional[Any], mutation_name: str, record_type: str
     ) -> Optional[int]:
         """Extract the record ID from a GraphQL create mutation response.
 
         Args:
             data: The 'data' portion of the GraphQL response.
             mutation_name: Name of the mutation.
-            id_field: Field name containing the ID in the response.
+            record_type: Record type (determines nested vs flat ID extraction).
 
         Returns:
             The record ID, or None if not found or mutation failed.
@@ -172,7 +185,10 @@ class B4igoVaultApiStorage:
         mutation_result = data.get(mutation_name, {})
         if not mutation_result.get("success"):
             return None
-        return mutation_result.get(id_field)
+        nested_field = _NESTED_RESPONSE_ID_FIELD.get(record_type)
+        if nested_field:
+            return (mutation_result.get("data") or {}).get(nested_field)
+        return mutation_result.get("id")
 
     # --- Per-type create variable builders ---
 
@@ -191,7 +207,7 @@ class B4igoVaultApiStorage:
         return {
             "userId": username,
             "doctorName": payload.get("doctor_name", ""),
-            "contact": payload.get("location", ""),
+            "contactInformation": payload.get("location", ""),
         }
 
     def _insurance_create_variables(
@@ -295,7 +311,7 @@ class B4igoVaultApiStorage:
             "userId": username,
             "doctorId": record_id,
             "doctorName": payload.get("doctor_name", ""),
-            "contact": payload.get("location", ""),
+            "contactInformation": payload.get("location", ""),
         }
 
     def _insurance_update_variables(
@@ -399,14 +415,7 @@ class B4igoVaultApiStorage:
         Returns:
             GraphQL variables dict.
         """
-        id_field_map = {
-            "doctor": "doctorId",
-            "insurance": "insuranceId",
-            "medication": "recordId",
-            "medical_history": "historyId",
-        }
-        id_field = id_field_map.get(record_type, "id")
-        return {"userId": username, id_field: record_id}
+        return {"id": record_id, "userId": username}
 
     # --- GraphQL mutation/query builders ---
 
@@ -420,56 +429,22 @@ class B4igoVaultApiStorage:
             GraphQL mutation string.
         """
         mutation_name = _CREATE_MUTATIONS.get(record_type, "")
-        id_field = _RESPONSE_ID_FIELD.get(record_type, "id")
-
-        if record_type == "doctor":
-            return f"""
-mutation {mutation_name}($userId: String!, $doctorName: String!, $contact: String) {{
-  {mutation_name}(userId: $userId, doctorName: $doctorName, contact: $contact) {{
+        input_type = _CREATE_INPUT_TYPES.get(record_type, "")
+        if not mutation_name or not input_type:
+            return ""
+        nested_field = _NESTED_RESPONSE_ID_FIELD.get(record_type)
+        id_selection = f"data {{ {nested_field} }}" if nested_field else "id"
+        return f"""
+mutation($input: {input_type}!) {{
+  {mutation_name}(input: $input) {{
     code
     success
     message
     error
-    {id_field}
+    {id_selection}
   }}
 }}
 """
-        elif record_type == "insurance":
-            return (
-                "mutation "
-                + mutation_name
-                + "($userId: String!, $insuranceName: String!, "
-                "$policyNumber: String!, $provider: String) { "
-                + mutation_name
-                + "(userId: $userId, insuranceName: $insuranceName, "
-                "policyNumber: $policyNumber, provider: $provider) { "
-                "code success message error " + id_field + " } }"
-            )
-        elif record_type == "medication":
-            return f"""
-mutation {mutation_name}($userId: String!, $medication: String!, $allergy: String!) {{
-  {mutation_name}(userId: $userId, medication: $medication, allergy: $allergy) {{
-    code
-    success
-    message
-    error
-    {id_field}
-  }}
-}}
-"""
-        elif record_type == "medical_history":
-            return f"""
-mutation {mutation_name}($userId: String!, $history: String!, $createdBy: String) {{
-  {mutation_name}(userId: $userId, history: $history, createdBy: $createdBy) {{
-    code
-    success
-    message
-    error
-    {id_field}
-  }}
-}}
-"""
-        return ""
 
     def _build_update_mutation(self, record_type: str) -> str:
         """Build the GraphQL mutation string for updating a record.
@@ -481,38 +456,12 @@ mutation {mutation_name}($userId: String!, $history: String!, $createdBy: String
             GraphQL mutation string.
         """
         mutation_name = _UPDATE_MUTATIONS.get(record_type, "")
-
-        if record_type == "doctor":
-            return (
-                "mutation " + mutation_name + "($userId: String!, $doctorId: Int!, "
-                "$doctorName: String!, $contact: String) { "
-                + mutation_name
-                + "(userId: $userId, doctorId: $doctorId, "
-                "doctorName: $doctorName, contact: $contact) { "
-                "code success message error } }"
-            )
-        elif record_type == "insurance":
-            return (
-                "mutation " + mutation_name + "($userId: String!, $insuranceId: Int!, "
-                "$insuranceName: String, $policyNumber: String, $provider: String) { "
-                + mutation_name
-                + "(userId: $userId, insuranceId: $insuranceId, "
-                "insuranceName: $insuranceName, policyNumber: $policyNumber, "
-                "provider: $provider) { code success message error } }"
-            )
-        elif record_type == "medication":
-            return (
-                "mutation " + mutation_name + "($userId: String!, $recordId: Int!, "
-                "$medication: String, $allergy: String) { "
-                + mutation_name
-                + "(userId: $userId, recordId: $recordId, "
-                "medication: $medication, allergy: $allergy) { "
-                "code success message error } }"
-            )
-        elif record_type == "medical_history":
-            return f"""
-mutation {mutation_name}($userId: String!, $historyId: Int!, $history: String) {{
-  {mutation_name}(userId: $userId, historyId: $historyId, history: $history) {{
+        input_type = _UPDATE_INPUT_TYPES.get(record_type, "")
+        if not mutation_name or not input_type:
+            return ""
+        return f"""
+mutation($input: {input_type}!) {{
+  {mutation_name}(input: $input) {{
     code
     success
     message
@@ -520,7 +469,6 @@ mutation {mutation_name}($userId: String!, $historyId: Int!, $history: String) {
   }}
 }}
 """
-        return ""
 
     def _build_delete_mutation(self, record_type: str) -> str:
         """Build the GraphQL mutation string for deleting a record.
@@ -532,11 +480,11 @@ mutation {mutation_name}($userId: String!, $historyId: Int!, $history: String) {
             GraphQL mutation string.
         """
         mutation_name = _DELETE_MUTATIONS.get(record_type, "")
-
-        if record_type == "doctor":
-            return f"""
-mutation {mutation_name}($userId: String!, $doctorId: Int!) {{
-  {mutation_name}(userId: $userId, doctorId: $doctorId) {{
+        if not mutation_name:
+            return ""
+        return f"""
+mutation($input: DeleteRequest) {{
+  {mutation_name}(input: $input) {{
     code
     success
     message
@@ -544,40 +492,6 @@ mutation {mutation_name}($userId: String!, $doctorId: Int!) {{
   }}
 }}
 """
-        elif record_type == "insurance":
-            return f"""
-mutation {mutation_name}($userId: String!, $insuranceId: Int!) {{
-  {mutation_name}(userId: $userId, insuranceId: $insuranceId) {{
-    code
-    success
-    message
-    error
-  }}
-}}
-"""
-        elif record_type == "medication":
-            return f"""
-mutation {mutation_name}($userId: String!, $recordId: Int!) {{
-  {mutation_name}(userId: $userId, recordId: $recordId) {{
-    code
-    success
-    message
-    error
-  }}
-}}
-"""
-        elif record_type == "medical_history":
-            return f"""
-mutation {mutation_name}($userId: String!, $historyId: Int!) {{
-  {mutation_name}(userId: $userId, historyId: $historyId) {{
-    code
-    success
-    message
-    error
-  }}
-}}
-"""
-        return ""
 
     def _build_read_query(self, record_type: str) -> str:
         """Build the GraphQL query string for reading records.
@@ -736,12 +650,11 @@ query {query_name}($userId: String!) {{
         if not mutation:
             return None
 
-        variables = self._create_variables_for_type(record_type, username, payload)
+        variables = {"input": self._create_variables_for_type(record_type, username, payload)}
         data = self._request(mutation, variables)
 
         mutation_name = _CREATE_MUTATIONS.get(record_type, "")
-        id_field = _RESPONSE_ID_FIELD.get(record_type, "id")
-        return self._graphql_id(data, mutation_name, id_field)
+        return self._graphql_id(data, mutation_name, record_type)
 
     def get_records(
         self,
@@ -826,7 +739,7 @@ query {query_name}($userId: String!) {{
         if not mutation:
             return False
 
-        variables = self._update_variables_for_type(record_type, id, payload, username)
+        variables = {"input": self._update_variables_for_type(record_type, id, payload, username)}
         data = self._request(mutation, variables)
 
         mutation_name = _UPDATE_MUTATIONS.get(record_type, "")
@@ -850,7 +763,7 @@ query {query_name}($userId: String!) {{
         if not mutation:
             return False
 
-        variables = self._delete_variables_for_type(record_type, id, username)
+        variables = {"input": self._delete_variables_for_type(record_type, id, username)}
         data = self._request(mutation, variables)
 
         mutation_name = _DELETE_MUTATIONS.get(record_type, "")

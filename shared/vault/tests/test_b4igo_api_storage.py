@@ -6,16 +6,17 @@ from shared.vault.b4igo_api_storage import B4igoVaultApiStorage
 
 
 def _graphql_response(
-    mutation_name, success=True, id_field="id", id_value=None, errors=None
+    mutation_name, success=True, id_value=None, errors=None, nested_id_field=None
 ):
     """Build a mock GraphQL response.
 
     Args:
         mutation_name: Name of the mutation or query.
         success: Whether the mutation/query succeeded.
-        id_field: Field name for the ID in create mutations.
-        id_value: ID value to return (for create mutations).
+        id_value: ID value to return in the create mutation response.
         errors: Optional list of error dicts.
+        nested_id_field: If set, id_value is nested inside data[field];
+            otherwise id_value is placed flat on the mutation result.
 
     Returns:
         Mock response object with .json() method.
@@ -33,7 +34,10 @@ def _graphql_response(
             }
         }
         if id_value is not None:
-            data[mutation_name][id_field] = id_value
+            if nested_id_field:
+                data[mutation_name]["data"] = {nested_id_field: id_value}
+            else:
+                data[mutation_name]["id"] = id_value
         resp.json.return_value = {"data": data}
     return resp
 
@@ -86,14 +90,14 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_add_record_doctor_returns_id(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateFamilyDoctor", success=True, id_field="id", id_value=42
+            "createFamilyDoctor", success=True, id_value=42, nested_id_field="doctorId"
         )
         rid = self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
         self.assertEqual(rid, 42)
 
-    def test_add_record_medication_uses_medicationId(self) -> None:
+    def test_add_record_medication_returns_id(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateMedicationAllergy", success=True, id_field="medicationId", id_value=7
+            "createMedicationAndAllergy", success=True, id_value=7
         )
         rid = self.storage.add_record(
             "alice", "medication", {"name_of_medicine": "Aspirin"}
@@ -102,21 +106,21 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_add_record_graphql_error_returns_none(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateFamilyDoctor", errors=[{"message": "something went wrong"}]
+            "createFamilyDoctor", errors=[{"message": "something went wrong"}]
         )
         rid = self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
         self.assertIsNone(rid)
 
     def test_add_record_mutation_failure_returns_none(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateFamilyDoctor", success=False, id_field="id", id_value=None
+            "createFamilyDoctor", success=False, id_value=None
         )
         rid = self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
         self.assertIsNone(rid)
 
     def test_add_record_doctor_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateFamilyDoctor", success=True, id_field="id", id_value=1
+            "createFamilyDoctor", success=True, id_value=1, nested_id_field="doctorId"
         )
         self.storage.add_record(
             "alice", "doctor", {"doctor_name": "Dr. Smith", "location": "123 Main St"}
@@ -125,14 +129,14 @@ class TestB4igoVaultApiStorage(TestCase):
         body = kwargs["json"]
         self.assertIn("query", body)
         self.assertIn("variables", body)
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
         self.assertEqual(variables["doctorName"], "Dr. Smith")
-        self.assertEqual(variables["contact"], "123 Main St")
+        self.assertEqual(variables["contactInformation"], "123 Main St")
 
     def test_add_record_medication_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateMedicationAllergy", success=True, id_field="medicationId", id_value=2
+            "createMedicationAndAllergy", success=True, id_value=2
         )
         self.storage.add_record(
             "alice",
@@ -144,14 +148,14 @@ class TestB4igoVaultApiStorage(TestCase):
         )
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
         self.assertEqual(variables["medication"], "Ibuprofen")
         self.assertEqual(variables["allergy"], "Nausea")
 
     def test_add_record_insurance_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateHealthInsurance", success=True, id_field="id", id_value=3
+            "createHealthInsurance", success=True, id_value=3
         )
         self.storage.add_record(
             "alice",
@@ -160,7 +164,7 @@ class TestB4igoVaultApiStorage(TestCase):
         )
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
         self.assertEqual(variables["insuranceName"], "PPO")
         self.assertEqual(variables["policyNumber"], "")
@@ -168,7 +172,7 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_add_record_medical_history_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateMedicalHistory", success=True, id_field="id", id_value=4
+            "createMedicalHistories", success=True, id_value=4
         )
         self.storage.add_record(
             "alice",
@@ -177,14 +181,14 @@ class TestB4igoVaultApiStorage(TestCase):
         )
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
         self.assertEqual(variables["history"], "Hypertension - Stage 1")
         self.assertEqual(variables["createdBy"], "alice")
 
     def test_add_record_medical_history_without_description(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateMedicalHistory", success=True, id_field="id", id_value=5
+            "createMedicalHistories", success=True, id_value=5
         )
         self.storage.add_record(
             "alice",
@@ -193,12 +197,12 @@ class TestB4igoVaultApiStorage(TestCase):
         )
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["history"], "Diabetes")
 
     def test_add_record_posts_to_graphql_endpoint(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateFamilyDoctor", success=True, id_field="id", id_value=1
+            "createFamilyDoctor", success=True, id_value=1, nested_id_field="doctorId"
         )
         self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
         call_args = self.session.post.call_args
@@ -299,7 +303,7 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_update_record_doctor_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "UpdateFamilyDoctor", success=True
+            "updateFamilyDoctor", success=True
         )
         ok = self.storage.update_record(
             10,
@@ -310,15 +314,15 @@ class TestB4igoVaultApiStorage(TestCase):
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["doctorId"], 10)
         self.assertEqual(variables["userId"], "alice")
         self.assertEqual(variables["doctorName"], "Dr. New")
-        self.assertEqual(variables["contact"], "456 Oak")
+        self.assertEqual(variables["contactInformation"], "456 Oak")
 
     def test_update_record_medication_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "UpdateMedicationAndAllergies", success=True
+            "updateMedicationAndAllergies", success=True
         )
         ok = self.storage.update_record(
             5,
@@ -329,14 +333,14 @@ class TestB4igoVaultApiStorage(TestCase):
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["recordId"], 5)
         self.assertEqual(variables["medication"], "Tylenol")
         self.assertEqual(variables["allergy"], "Drowsiness")
 
     def test_update_record_insurance_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "UpdateHealthInsurance", success=True
+            "updateHealthInsurance", success=True
         )
         ok = self.storage.update_record(
             3,
@@ -347,13 +351,13 @@ class TestB4igoVaultApiStorage(TestCase):
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["insuranceId"], 3)
         self.assertEqual(variables["insuranceName"], "HMO")
 
     def test_update_record_medical_history_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "UpdateMedicalHistory", success=True
+            "updateMedicalHistory", success=True
         )
         ok = self.storage.update_record(
             8,
@@ -364,13 +368,13 @@ class TestB4igoVaultApiStorage(TestCase):
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
+        variables = body["variables"]["input"]
         self.assertEqual(variables["historyId"], 8)
         self.assertEqual(variables["history"], "Asthma - Mild")
 
     def test_update_record_returns_false_on_graphql_error(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "UpdateFamilyDoctor", errors=[{"message": "failed"}]
+            "updateFamilyDoctor", errors=[{"message": "failed"}]
         )
         ok = self.storage.update_record(
             10, {"doctor_name": "Dr. New"}, record_type="doctor", username="alice"
@@ -379,7 +383,7 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_update_record_returns_false_on_mutation_failure(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "UpdateFamilyDoctor", success=False
+            "updateFamilyDoctor", success=False
         )
         ok = self.storage.update_record(
             10, {"doctor_name": "Dr. New"}, record_type="doctor", username="alice"
@@ -390,41 +394,43 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_delete_record_doctor_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "DeleteDoctorDetails", success=True
+            "deleteDoctorDetails", success=True
         )
         ok = self.storage.delete_record(10, record_type="doctor", username="alice")
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
-        self.assertEqual(variables["doctorId"], 10)
+        variables = body["variables"]["input"]
+        self.assertEqual(variables["id"], 10)
         self.assertEqual(variables["userId"], "alice")
 
     def test_delete_record_medication_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "DeleteMedicationAndAllergies", success=True
+            "deleteMedicationAllergies", success=True
         )
         ok = self.storage.delete_record(5, record_type="medication", username="alice")
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
-        self.assertEqual(variables["recordId"], 5)
+        variables = body["variables"]["input"]
+        self.assertEqual(variables["id"], 5)
+        self.assertEqual(variables["userId"], "alice")
 
     def test_delete_record_insurance_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "DeleteHealthInsurance", success=True
+            "deleteHealthInsurance", success=True
         )
         ok = self.storage.delete_record(3, record_type="insurance", username="alice")
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
-        self.assertEqual(variables["insuranceId"], 3)
+        variables = body["variables"]["input"]
+        self.assertEqual(variables["id"], 3)
+        self.assertEqual(variables["userId"], "alice")
 
     def test_delete_record_medical_history_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "DeleteMedicalHistory", success=True
+            "deleteMedicalHistory", success=True
         )
         ok = self.storage.delete_record(
             8, record_type="medical_history", username="alice"
@@ -432,19 +438,20 @@ class TestB4igoVaultApiStorage(TestCase):
         self.assertTrue(ok)
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
-        variables = body["variables"]
-        self.assertEqual(variables["historyId"], 8)
+        variables = body["variables"]["input"]
+        self.assertEqual(variables["id"], 8)
+        self.assertEqual(variables["userId"], "alice")
 
     def test_delete_record_returns_false_on_graphql_error(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "DeleteDoctorDetails", errors=[{"message": "failed"}]
+            "deleteDoctorDetails", errors=[{"message": "failed"}]
         )
         ok = self.storage.delete_record(10, record_type="doctor", username="alice")
         self.assertFalse(ok)
 
     def test_delete_record_returns_false_on_mutation_failure(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "DeleteDoctorDetails", success=False
+            "deleteDoctorDetails", success=False
         )
         ok = self.storage.delete_record(10, record_type="doctor", username="alice")
         self.assertFalse(ok)
@@ -464,7 +471,7 @@ class TestB4igoVaultApiStorage(TestCase):
 
     def test_request_body_has_query_and_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
-            "CreateFamilyDoctor", success=True, id_field="id", id_value=1
+            "createFamilyDoctor", success=True, id_value=1
         )
         self.storage.add_record("alice", "doctor", {"doctor_name": "Dr. A"})
         _, kwargs = self.session.post.call_args
