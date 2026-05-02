@@ -41,7 +41,7 @@ converter = DocumentConverter(
 reranker_model = os.environ.get("RERANKER_MODEL", None)
 parser_model = os.environ.get("PARSER_MODEL", None)
 pipeline = AIPipeline(reranker_model=reranker_model, parser_model=parser_model)
-BACKEND_URL = "http://localhost:5000/api/confirmations/enqueue"
+BACKEND_URL = os.environ.get("B4IGO_BACKEND_URL", "http://localhost:5000").rstrip("/")
 
 logging.basicConfig(
     level=logging.INFO,

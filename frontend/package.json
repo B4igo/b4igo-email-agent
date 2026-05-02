@@ -15,6 +15,8 @@
     "@mui/material": "^7.3.7",
     "@react-buddy/ide-toolbox": "^2.4.0",
     "axios": "^1.13.4",
+    "elliptic": "^6.6.1",
+    "ethers": "^6.16.0",
     "react": "^18.2.0",
     "react-auth-kit": "latest",
     "react-dom": "^18.2.0",
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.33",
     "@eslint/js": "^9.39.1",
+    "@types/elliptic": "^6.4.18",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",

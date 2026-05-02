@@ -7,7 +7,8 @@
   },
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
-    "https://www.stage.b4igo.com/*"
+    "https://www.stage.b4igo.com/*",
+    "http://localhost:5000/*"
   ],
   "content_scripts": [
     {

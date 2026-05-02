@@ -38,18 +38,18 @@ class Database:
                 """
                 CREATE TABLE IF NOT EXISTS confirmations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT NOT NULL,
-                    jsonPayload TEXT NOT NULL,
-                    FOREIGN KEY (username) REFERENCES users(username)
+                    user_id TEXT NOT NULL,
+                    json_payload TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             """
             )
 
-    def add_confirmation(self, username: str, json_payload: str) -> Optional[int]:
+    def add_confirmation(self, user_id: str, json_payload: str) -> Optional[int]:
         """Add a new confirmation for a user.
 
         Args:
-            username: Username this confirmation belongs to
+            user_id: User ID this confirmation belongs to
             json_payload: JSON payload string
 
         Returns:
@@ -58,26 +58,26 @@ class Database:
         try:
             with self._get_connection() as conn:
                 cursor = conn.execute(
-                    "INSERT INTO confirmations (username, jsonPayload) VALUES (?, ?)",
-                    (username, json_payload),
+                    "INSERT INTO confirmations (user_id, json_payload) VALUES (?, ?)",
+                    (user_id, json_payload),
                 )
                 return cursor.lastrowid
         except sqlite3.IntegrityError:
             return None
 
-    def get_confirmations(self, username: str) -> list[dict]:
+    def get_confirmations(self, user_id: str) -> list[dict]:
         """Get all confirmations for a user.
 
         Args:
-            username: Username to get confirmations for
+            user_id: User ID to get confirmations for
 
         Returns:
             List of confirmation dicts with id and jsonPayload.
         """
         with self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT id, jsonPayload FROM confirmations WHERE username = ?",
-                (username,),
+                "SELECT id, json_payload FROM confirmations WHERE user_id = ?",
+                (user_id,),
             )
             return [dict(row) for row in cursor.fetchall()]
 

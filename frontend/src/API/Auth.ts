@@ -1,6 +1,10 @@
 ﻿import axios from 'axios';
+import { ec as EC } from 'elliptic';
+import { computeAddress, Wallet } from 'ethers';
 
-const BACKEND_URL = 'http://localhost:5000/api';
+declare const chrome: any;
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
     baseURL: BACKEND_URL,
@@ -23,50 +27,96 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                const refreshToken = localStorage.getItem('_auth_refresh');
-                const { data } = await axios.post(`${BACKEND_URL}/auth/refresh`, {
-                    refresh_token: refreshToken
-                });
-
-                localStorage.setItem('_auth', data.access_token);
-                originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
-
+                const data = await auth.performSiweFlow();
+                originalRequest.headers.Authorization = `Bearer ${data.jwt}`;
                 return api(originalRequest);
-            } catch (refreshError) {
+            } catch (reauthError) {
                 localStorage.clear();
                 window.location.href = '/login';
-                return Promise.reject(refreshError);
+                return Promise.reject(reauthError);
             }
         }
-
         return Promise.reject(error);
     }
 );
 
 
 export const auth = {
-    async login(email: string, password: string, signIn: any) {
-        const { data } = await axios.post(`${BACKEND_URL}/auth/login`, {
-            username: email,
-            password
+    async init(address: string) {
+        const { data } = await axios.post(`${BACKEND_URL}/auth/init`, {
+            address
         });
-
-        if (data.refresh_token) {
-            localStorage.setItem('_auth_refresh', data.refresh_token);
-        }
-
-        const success = signIn({
-            token: data.access_token,
-            expiresIn: 3600,
-            tokenType: 'Bearer',
-            authState: { email }
-        });
-
-        if (!success) {
-            throw new Error('Authentication failed');
-        }
-
         return data;
+    },
+
+    async performSiweFlow(signIn?: any) {
+        let keysRaw = localStorage.getItem("allPrivateKeys");
+        
+        if (!keysRaw && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            const result = await new Promise<{ allPrivateKeys?: string }>((resolve) => {
+                chrome.storage.local.get(['allPrivateKeys'], (res: any) => resolve(res as any));
+            });
+            keysRaw = result.allPrivateKeys || null;
+        }
+
+        if (!keysRaw) {
+            throw new Error(
+                "Authentication keys not found. Please ensure you are logged into the B4iGo website and navigate to it" +
+                " for your keys to be transferred to the extension."
+            );
+        }
+
+        let keys;
+        try {
+            keys = JSON.parse(keysRaw || "[]");
+        } catch (e) {
+            throw new Error("Failed to parse authentication keys. Please clear your storage and try again.");
+        }
+
+        const entry = keys.find((d: any) => d.isBackup === false);
+        const pivKey = entry?.privateKey?.privateKeyHex;
+
+        if (!pivKey) {
+            throw new Error(
+                "Active private key not found in stored keys. Please clear your storage and try again."
+            );
+        }
+
+        const ec = new EC("secp256k1");
+        const keyPair = ec.keyFromPrivate(pivKey, "hex");
+        const publicKeyUncompressed = keyPair.getPublic().encode("hex", false);
+
+        const publicKeyWithoutPrefix = publicKeyUncompressed.slice(2);
+        const address = computeAddress("0x" + publicKeyWithoutPrefix);
+
+        try {
+            const { siweMessage, requestId } = await this.init(address);
+
+            const wallet = new Wallet(pivKey);
+            const signature = await wallet.signMessage(siweMessage);
+
+            const { data } = await axios.post(`${BACKEND_URL}/auth/verify`, {
+                signature,
+                requestId
+            });
+
+            if (signIn) {
+                signIn({
+                    token: data.jwt,
+                    expiresIn: 3600,
+                    tokenType: 'Bearer',
+                    authState: { userId: data.userId, email: data.email }
+                });
+            } else {
+                localStorage.setItem('_auth', data.jwt);
+            }
+
+            return data;
+        } catch (err: any) {
+            console.error("SIWE flow error:", err);
+            const msg = err.response?.data?.error || err.message || "Unknown authentication error";
+            throw new Error(`Authentication failed: ${msg}`);
+        }
     },
 
     async logout() {

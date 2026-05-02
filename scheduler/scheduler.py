@@ -6,14 +6,20 @@ import requests
 from flask import Flask, request, jsonify
 from io import BytesIO
 
+import os
+
 # API Endpoints
-aiCallText = "http://localhost:5300/api/ai/text"
-aiCallAttachments = "http://localhost:5300/api/ai/text-with-attachments"
-accountEmailCall = "http://localhost:5100/api/pull"
+AI_URL = os.environ.get("B4IGO_AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
+AM_URL = os.environ.get("B4IGO_ACCOUNT_MANAGER_URL", "http://localhost:5100").rstrip("/")
+
+aiCallText = f"{AI_URL}/api/ai/text"
+aiCallAttachments = f"{AI_URL}/api/ai/text-with-attachments"
+accountEmailCall = f"{AM_URL}/api/pull"
 
 #Redis Connection Setup------------------------------
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 queue = redis.Redis(
-    host="localhost",
+    host=REDIS_HOST,
     port=6379, 
     db=0, 
     decode_responses=True)

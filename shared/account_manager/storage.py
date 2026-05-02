@@ -45,8 +45,7 @@ class AccountStorage:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
-                    username TEXT PRIMARY KEY,
-                    password TEXT NOT NULL,
+                    id TEXT PRIMARY KEY,
                     role TEXT NOT NULL,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -87,61 +86,60 @@ class AccountStorage:
                 """
             )
 
-    def upsert_user(self, username: str, password: str, role: str) -> dict[str, Any]:
-        """Create or update one user credential record."""
+    def upsert_user(self, user_id: str, role: str) -> dict[str, Any]:
+        """Create or update one user record."""
         with self._get_connection() as conn:
             existing = conn.execute(
-                "SELECT username FROM users WHERE username = ?",
-                (username,),
+                "SELECT id FROM users WHERE id = ?",
+                (user_id,),
             ).fetchone()
             if existing is None:
                 conn.execute(
-                    "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-                    (username, password, role),
+                    "INSERT INTO users (id, role) VALUES (?, ?)",
+                    (user_id, role),
                 )
             else:
                 conn.execute(
                     """
                     UPDATE users
-                    SET password = ?, role = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE username = ?
+                    SET role = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
                     """,
-                    (password, role, username),
+                    (role, user_id),
                 )
 
             row = conn.execute(
-                "SELECT username, role, created_at, updated_at FROM users WHERE username = ?",
-                (username,),
+                "SELECT id, role, created_at, updated_at FROM users WHERE id = ?",
+                (user_id,),
             ).fetchone()
 
         return {
-            "username": row["username"],
+            "id": row["id"],
             "role": row["role"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
         }
 
-    def get_user(self, username: str) -> Optional[dict[str, Any]]:
-        """Return one user record including password for auth checks."""
+    def get_user(self, user_id: str) -> Optional[dict[str, Any]]:
+        """Return one user record for auth checks."""
         with self._get_connection() as conn:
             row = conn.execute(
-                "SELECT username, password, role FROM users WHERE username = ?",
-                (username,),
+                "SELECT id, role FROM users WHERE id = ?",
+                (user_id,),
             ).fetchone()
         if row is None:
             return None
         return {
-            "username": row["username"],
-            "password": row["password"],
+            "id": row["id"],
             "role": row["role"],
         }
 
-    def user_exists(self, username: str) -> bool:
-        """Return whether the given username exists."""
+    def user_exists(self, user_id: str) -> bool:
+        """Return whether the given user_id exists."""
         with self._get_connection() as conn:
             row = conn.execute(
-                "SELECT 1 FROM users WHERE username = ?",
-                (username,),
+                "SELECT 1 FROM users WHERE id = ?",
+                (user_id,),
             ).fetchone()
         return row is not None
 

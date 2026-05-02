@@ -1,7 +1,7 @@
 """HTTP client used by middleware to call AccountManager microservice."""
 
 import os
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -19,7 +19,7 @@ class AccountManagerClient:
         self.base_url = (
             base_url
             or os.environ.get("B4IGO_ACCOUNT_MANAGER_URL")
-            or "http://127.0.0.1:5100"
+            or "http://localhost:5100"
         ).rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.service_token = os.environ.get("B4IGO_ACCOUNT_MANAGER_TOKEN")
@@ -29,9 +29,9 @@ class AccountManagerClient:
         b4igo_user_id: str,
         provider: str,
         email_address: str,
-        credentials: dict[str, Any],
+        credentials: Dict[str, Any],
         display_name: Optional[str] = None,
-        config: Optional[dict[str, Any]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> requests.Response:
         """Create or update linked account in AccountManager service."""
         payload: dict[str, Any] = {
@@ -52,35 +52,31 @@ class AccountManagerClient:
             timeout=self.timeout_seconds,
         )
 
-    def seed_user(
-        self,
-        username: str,
-        password: str,
-        role: str = "user",
-    ) -> requests.Response:
-        """Create or update one user in account-manager auth storage."""
-        payload = {
-            "username": username,
-            "password": password,
-            "role": role,
-        }
+    def auth_init(self, address: str) -> requests.Response:
+        """Initialize SIWE flow."""
         return requests.post(
-            f"{self.base_url}/api/auth/seed-user",
-            json=payload,
+            f"{self.base_url}/api/auth/init",
+            json={"address": address},
             headers=self._headers(),
             timeout=self.timeout_seconds,
         )
 
-    def verify_user(self, username: str, password: str) -> requests.Response:
-        """Verify username/password against account-manager auth storage."""
-        payload = {
-            "username": username,
-            "password": password,
-        }
+    def auth_verify(self, signature: str, request_id: str) -> requests.Response:
+        """Verify SIWE signature."""
         return requests.post(
             f"{self.base_url}/api/auth/verify",
-            json=payload,
+            json={"signature": signature, "requestId": request_id},
             headers=self._headers(),
+            timeout=self.timeout_seconds,
+        )
+
+    def auth_validate(self, token: str) -> requests.Response:
+        """Validate JWT via SIWE using Bearer token."""
+        headers = self._headers()
+        headers["Authorization"] = token if token.startswith("Bearer ") else f"Bearer {token}"
+        return requests.get(
+            f"{self.base_url}/api/auth/validate",
+            headers=headers,
             timeout=self.timeout_seconds,
         )
 
@@ -147,7 +143,7 @@ class AccountManagerClient:
         self,
         provider: str,
         function_name: str,
-        steps: list[dict[str, Any]],
+        steps: List[Dict[str, Any]],
         b4igo_user_id: str,
     ) -> requests.Response:
         """Run one provider setup callback with raw steps payload."""
@@ -182,7 +178,7 @@ class AccountManagerClient:
             timeout=self.timeout_seconds,
         )
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self) -> Dict[str, str]:
         """Create headers for internal service calls."""
         headers = {"Content-Type": "application/json"}
         if self.service_token:

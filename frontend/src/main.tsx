@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom"
+import {Route, Routes, Navigate, HashRouter} from "react-router-dom"
 import Login from "./Pages/Login.tsx"
 import { AuthProvider, RequireAuth } from 'react-auth-kit'
 import {Confirmations} from "./Pages/Confirmations.tsx";
@@ -14,14 +14,14 @@ import {Box} from "@mui/material";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <Box sx={{ minWidth: 800, }}>
+        <Box sx={{ minWidth: 800, minHeight: 600 }}>
             <AuthProvider
                 authType="localstorage"
                 authName="_auth"
                 cookieDomain={window.location.hostname}
                 cookieSecure={window.location.protocol === 'https:'}
             >
-                <BrowserRouter>
+                <HashRouter>
                     <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route
@@ -44,7 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             }
                         />
                     </Routes>
-                </BrowserRouter>
+                </HashRouter>
             </AuthProvider>
         </Box>
     </React.StrictMode>,

@@ -35,7 +35,7 @@ IMAP_PORT = int(os.environ.get("IMAP_PORT", "143"))
 IMAP_USER = os.environ.get("IMAP_USER", "alice@test.local")
 IMAP_PASS = os.environ.get("IMAP_PASS", "password123")
 
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:5000")
+BACKEND_URL = os.environ.get("B4IGO_BACKEND_URL", os.environ.get("BACKEND_URL", "http://localhost:5000"))
 BACKEND_USER = os.environ.get("BACKEND_USER", "user")
 
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "0"))  # 0 = run once

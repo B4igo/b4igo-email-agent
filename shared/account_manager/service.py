@@ -1,11 +1,159 @@
 """Application service for linked account management and provider pulls."""
 
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from .models import EmailSetupStep, ProviderType
 from .providers import EmailProvider, GmailProvider, ImapProvider
 from .storage import AccountStorage
+import httpx
+import os
+import jwt
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SIWEClient:
+    """Client for SIWE GraphQL server."""
+
+    def __init__(self, url: Optional[str] = None):
+        self.url = url or os.environ.get("B4IGO_BACKEND_GRAPHQL_URL", "")
+
+        if not self.url:
+            raise ValueError("B4IGO_BACKEND_GRAPHQL_URL environment variable is not set")
+
+        if self.url:
+            self.url = self.url.rstrip("/")
+
+    def init_siwe(self, address: str) -> dict[str, Any]:
+        """Execute HelloServer mutation."""
+        query = '''
+        mutation HelloServer($input: SiweHelloRequestInput!) {
+          HelloServer(input: $input) {
+            siweMessage
+            requestId
+          }
+        }
+        '''
+        variables = {"input": {"address": address}}
+        try:
+            headers = {
+                "Accept": "application/json",
+                "User-Agent": "B4iGO-AccountManager/1.0"
+            }
+            response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
+
+            if response.status_code != 200:
+                response.raise_for_status()
+
+            if not response.text.strip():
+                logger.error("SIWEClient: init_siwe returned empty body")
+                return {}
+
+            try:
+                data = response.json()
+            except Exception as je:
+                logger.error("SIWEClient: init_siwe JSON decode failed. Content-Type: %s, Body: %s",
+                             response.headers.get("Content-Type"), response.text[:500])
+                raise je
+
+            return data.get("data", {}).get("HelloServer", {})
+        except Exception as e:
+            logger.error("SIWEClient: init_siwe failed: %s", e)
+            raise
+
+    def verify_siwe(self, signature: str, request_id: str) -> dict[str, Any]:
+        """Execute VerifySignature mutation."""
+        query = '''
+        mutation VerifySignature($input: VerifySignatureRequestInput!) {
+          VerifySignature(input: $input) {
+            jwt
+            userId
+            email
+          }
+        }
+        '''
+        variables = {"input": {"signature": signature, "requestId": request_id}}
+        try:
+            headers = {
+                "Accept": "application/json",
+                "User-Agent": "B4iGO-AccountManager/1.0"
+            }
+            response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
+
+            if response.status_code != 200:
+                logger.error("SIWEClient: verify_siwe failed with status %s: %s", response.status_code, response.text)
+                response.raise_for_status()
+
+            if not response.text.strip():
+                logger.error("SIWEClient: verify_siwe returned empty body")
+                return {}
+
+            try:
+                data = response.json()
+            except Exception as je:
+                logger.error("SIWEClient: verify_siwe JSON decode failed. Content-Type: %s, Body: %s",
+                             response.headers.get("Content-Type"), response.text[:500])
+                raise je
+
+            return data.get("data", {}).get("VerifySignature", {})
+        except Exception as e:
+            logger.error("SIWEClient: verify_siwe failed: %s", e)
+            raise
+
+    def validate_jwt(self, token: str) -> dict[str, Any]:
+        """Execute GetB4igoProfile query using the Bearer token."""
+        try:
+            raw_token = token.split(" ")[1] if "Bearer" in token else token
+            payload = jwt.decode(raw_token, options={"verify_signature": False})
+            user_id = payload.get("userId") or payload.get("sub") or payload.get("id")
+        except Exception:
+            return {"valid": False, "error": "Invalid token format"}
+
+        if not user_id:
+            return {"valid": False, "error": "Could not extract user ID from token"}
+
+        query = '''
+        query getB4igoProfile($userId: String!) {
+          getB4igoProfile(userId: $userId) {
+            success
+            data {
+              id
+            }
+          }
+        }
+        '''
+        variables = {"userId": str(user_id)}
+        headers = {
+            "Authorization": f"Bearer {raw_token}",
+            "Accept": "application/json",
+            "User-Agent": "B4iGO-AccountManager/1.0"
+        }
+        
+        try:
+            response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
+
+            if response.status_code != 200:
+                logger.error("SIWEClient: validate_jwt failed with status %s: %s", response.status_code, response.text)
+                return {"valid": False, "error": f"returned status {response.status_code}"}
+
+            if not response.text.strip():
+                logger.error("SIWEClient: validate_jwt returned empty body")
+                return {"valid": False, "error": "returned empty body"}
+
+            try:
+                data = response.json()
+            except Exception as je:
+                logger.error("SIWEClient: validate_jwt JSON decode failed. Content-Type: %s, Body: %s",
+                             response.headers.get("Content-Type"), response.text[:500])
+                return {"valid": False, "error": "Invalid JSON response from"}
+
+            profile = data.get("data", {}).get("getB4igoProfile", {})
+            if profile.get("success") is True:
+                return {"valid": True, "userId": user_id}
+            return {"valid": False, "error": "Token not valid against endpoint"}
+        except Exception as e:
+            return {"valid": False, "error": str(e)}
 
 class AccountManagerService:
     """Service that orchestrates account storage and provider pulls."""
@@ -13,29 +161,51 @@ class AccountManagerService:
     def __init__(
         self,
         storage: Optional[AccountStorage] = None,
-        providers: Optional[dict[ProviderType, EmailProvider]] = None,
+        providers: Optional[Dict[ProviderType, EmailProvider]] = None,
+        siwe_client: Optional[SIWEClient] = None,
     ):
         """Initialize service dependencies.
 
         Args:
             storage: Storage adapter for linked accounts.
             providers: Provider registry by provider type.
+            siwe_client: Client for SIWE functionality
         """
         self.storage = storage or AccountStorage()
         self.providers = providers or {
             "imap": ImapProvider(),
             "gmail": GmailProvider(),
         }
+        self.siwe_client = siwe_client or SIWEClient()
+
+    def init_siwe(self, address: str) -> dict[str, Any]:
+        """Proxy init SIWE."""
+        return self.siwe_client.init_siwe(address)
+
+    def verify_siwe(self, signature: str, request_id: str) -> dict[str, Any]:
+        """Proxy verify SIWE and create user."""
+        result = self.siwe_client.verify_siwe(signature, request_id)
+        user_id = result.get("userId")
+        if user_id:
+            self.storage.upsert_user(user_id=user_id, role="user")
+        return result
+
+    def validate_token(self, token: str) -> dict[str, Any]:
+        """Proxy validate JWT, and save user_id if valid."""
+        result = self.siwe_client.validate_jwt(token)
+        if result.get("valid") and result.get("userId"):
+            self.storage.upsert_user(user_id=result.get("userId"), role="user")
+        return result
 
     def link_account(
         self,
         b4igo_user_id: str,
         provider: ProviderType,
         email_address: str,
-        credentials: dict[str, Any],
+        credentials: Dict[str, Any],
         display_name: Optional[str] = None,
-        config: Optional[dict[str, Any]] = None,
-    ) -> Optional[dict[str, Any]]:
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Create or update one linked account for the user."""
         account = self.storage.upsert_account(
             b4igo_user_id=b4igo_user_id,
@@ -49,25 +219,7 @@ class AccountManagerService:
             return None
         return account.to_public_dict()
 
-    def seed_user(self, username: str, password: str, role: str = "user") -> dict[str, Any]:
-        """Create or update one user used by app-level authentication."""
-        return self.storage.upsert_user(username=username, password=password, role=role)
-
-    def authenticate_user(self, username: str, password: str) -> Optional[dict[str, Any]]:
-        """Return user profile when username/password matches, else None."""
-        user = self.storage.get_user(username)
-        if user is None or user.get("password") != password:
-            return None
-        return {
-            "username": str(user["username"]),
-            "role": str(user["role"]),
-        }
-
-    def user_exists(self, username: str) -> bool:
-        """Return whether a username exists in auth storage."""
-        return self.storage.user_exists(username)
-
-    def list_accounts(self, b4igo_user_id: str) -> list[dict[str, Any]]:
+    def list_accounts(self, b4igo_user_id: str) -> List[Dict[str, Any]]:
         """List all linked accounts for a user."""
         accounts = self.storage.list_accounts(b4igo_user_id)
         return [account.to_public_dict() for account in accounts]
@@ -87,7 +239,7 @@ class AccountManagerService:
         connector_name: Optional[str] = None,
         oauth_callback_url: Optional[str] = None,
         client_secrets_file: str = "client_secrets.json",
-    ) -> Optional[list[dict[str, Any]]]:
+    ) -> Optional[List[Dict[str, Any]]]:
         """Return setup flow required for a provider.
 
         Args:
@@ -106,7 +258,8 @@ class AccountManagerService:
 
         # Build backend redirect URL automatically
         # Fallback to localhost if not configured, though standard is 127.0.0.1:5100
-        redirect_uri = f"http://127.0.0.1:5100/api/providers/{provider}/oauth/callback"
+        am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
+        redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
 
         steps = adapter.GetSetup(
             account_id=b4igo_user_id,
@@ -133,9 +286,9 @@ class AccountManagerService:
         self,
         provider: str,
         function_name: str,
-        steps: list[dict[str, Any]],
+        steps: List[Dict[str, Any]],
         b4igo_user_id: str,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Validate setup steps by count/type and dispatch provider callback."""
         provider_adapter = self.providers.get(provider)
         if provider_adapter is None:
@@ -175,7 +328,7 @@ class AccountManagerService:
     def handle_oauth_callback(
         self,
         provider: str,
-        request_args: dict[str, Any],
+        request_args: Dict[str, Any],
         client_secrets_file: str = "client_secrets.json",
     ) -> str:
         """Pass OAuth callback to the correct provider.
@@ -190,7 +343,8 @@ class AccountManagerService:
             return "Unsupported provider"
             
         # Build backend redirect URL automatically
-        redirect_uri = f"http://127.0.0.1:5100/api/providers/{provider}/oauth/callback"
+        am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
+        redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
 
         # inject config for provider
         args = dict(request_args)
@@ -199,7 +353,7 @@ class AccountManagerService:
         
         return adapter.HandleCallback(args, self.storage)
 
-    def pull(self, b4igo_user_id: str, account_ids: list[int] = []) -> dict[str, Any]:
+    def pull(self, b4igo_user_id: str, account_ids: List[int] = []) -> Dict[str, Any]:
         """Pull new emails for valid linked accounts.
 
         Args:
