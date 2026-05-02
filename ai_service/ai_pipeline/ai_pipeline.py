@@ -10,9 +10,7 @@ from ai_service.ai_pipeline.domain_parser import DomainParser
 
 class AIPipeline:
 
-    def __init__(
-        self, reranker_model: Optional[str] = None, parser_model: Optional[str] = None
-    ) -> None:
+    def __init__(self, reranker_model: Optional[str] = None, parser_model: Optional[str] = None) -> None:
         self.domain_classifier = DomainClassifier(reranker_model)
         self.domain_parser = DomainParser(parser_model)
 

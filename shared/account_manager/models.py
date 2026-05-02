@@ -7,7 +7,6 @@ from typing import Any, Literal
 ProviderType = Literal["imap", "gmail"]
 SetupType = Literal["redirect", "boolean", "input", "password"]
 
-
 @dataclass
 class LinkedAccount:
     """Represents a linked provider account for one B4iGO user."""
@@ -41,11 +40,10 @@ class LinkedAccount:
             "credentials": _redact_credentials(self.credentials),
         }
 
-
 @dataclass
 class EmailSetupStep:
     """A step used to configure an email provider account.
-    The callback should be a function name for that provider or a full url."""
+       The callback should be a function name for that provider or a full url."""
 
     title: str
     desc: str
@@ -65,7 +63,6 @@ class GmailOAuthSession:
     connector_name: str | None
     created_at: str
     status: str
-
 
 def _redact_credentials(credentials: dict[str, Any]) -> dict[str, Any]:
     """Redact credential keys that likely contain secrets."""

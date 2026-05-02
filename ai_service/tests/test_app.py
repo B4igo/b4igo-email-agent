@@ -4,20 +4,25 @@ import io
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
-
-from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from flask import Flask
 from werkzeug.datastructures import FileStorage
 
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import (
+    PdfPipelineOptions,
+)
+from flask import Flask
+
+
 import ai_service.app as api_module
+
 from ai_service.app import (
     _append_attachments_to_text,
     parse_text,
     parse_text_with_attachments,
 )
+
 
 HERE = Path(__file__).resolve().parent
 

@@ -4,8 +4,8 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from typing import Any, Optional
+from datetime import datetime, timezone
 
 from .models import GmailOAuthSession, LinkedAccount, ProviderType
 
@@ -336,7 +336,6 @@ class AccountStorage:
                 """,
                 (last_read.astimezone(timezone.utc).isoformat(), account_id),
             )
-
 
 def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
     """Convert sqlite row into LinkedAccount."""

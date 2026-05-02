@@ -7,7 +7,6 @@ from typing import Any, Dict, List
 from unittest import TestCase
 
 from ai_service.ai_pipeline.domain_parser import DomainParser
-from shared.mail.models import EmailAddress, EmailInput
 from shared.schemas.schemas import (
     Appointment,
     Bill,
@@ -16,6 +15,7 @@ from shared.schemas.schemas import (
     MedicalHistory,
     Medication,
 )
+from shared.mail.models import EmailAddress, EmailInput
 
 
 class TestDomainParser(TestCase):

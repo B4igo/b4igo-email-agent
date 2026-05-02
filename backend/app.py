@@ -59,22 +59,14 @@ app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 86400  # 1 day
 
 jwt = JWTManager(app)
 account_manager_client = AccountManagerClient()
-frontend_base_url = os.environ.get(
-    "B4IGO_FRONTEND_URL", "http://localhost:5173"
-).rstrip("/")
-backend_base_url = os.environ.get("B4IGO_BACKEND_URL", "http://localhost:5000").rstrip(
-    "/"
-)
+frontend_base_url = os.environ.get("B4IGO_FRONTEND_URL", "http://localhost:5173").rstrip("/")
+backend_base_url = os.environ.get("B4IGO_BACKEND_URL", "http://localhost:5000").rstrip("/")
 
 
 def _seed_login_users() -> None:
     """Seed local dev login users in account manager auth storage."""
     demo_users = [
-        (
-            os.environ.get("B4IGO_DEMO_USERNAME", "user"),
-            os.environ.get("B4IGO_DEMO_PASSWORD", "password"),
-            "user",
-        ),
+        (os.environ.get("B4IGO_DEMO_USERNAME", "user"), os.environ.get("B4IGO_DEMO_PASSWORD", "password"), "user"),
         (
             os.environ.get("B4IGO_ADMIN_USERNAME", "admin"),
             os.environ.get("B4IGO_ADMIN_PASSWORD", "adminpass"),
@@ -84,13 +76,9 @@ def _seed_login_users() -> None:
 
     for username, password, role in demo_users:
         try:
-            response = account_manager_client.seed_user(
-                username=username, password=password, role=role
-            )
+            response = account_manager_client.seed_user(username=username, password=password, role=role)
             if response.status_code >= 400:
-                logger.warning(
-                    "Failed to seed login user %s via account manager", username
-                )
+                logger.warning("Failed to seed login user %s via account manager", username)
         except RequestException as exc:
             logger.warning("Skipping login seed; account manager unavailable: %s", exc)
             break
@@ -197,10 +185,7 @@ def enqueue_confirmation():
             logger.error("AccountManager user existence check failed: %s", exc)
             return jsonify({"error": "Authentication service unavailable"}), 503
         except ValueError:
-            return (
-                jsonify({"error": "Invalid response from authentication service"}),
-                502,
-            )
+            return jsonify({"error": "Invalid response from authentication service"}), 502
 
         confirmation_id = db.add_confirmation(username, json_payload)
         if confirmation_id:
@@ -332,7 +317,6 @@ def accept_confirmation():
     except Exception:
         return jsonify({"error": "Missing 'id' parameter"}), 400
 
-
 @app.route("/api/email-connectors", methods=["GET"])
 @jwt_required()
 def get_email_connectors():
@@ -375,9 +359,7 @@ def remove_email_connector(connector_id):
         return jsonify({"error": "Account manager service unavailable"}), 503
 
     if response.status_code == 204:
-        logger.info(
-            "Removed email connector id %s for user %s", connector_id, current_user
-        )
+        logger.info("Removed email connector id %s for user %s", connector_id, current_user)
         return jsonify({"message": "Email connector removed successfully"}), 200
     if response.status_code == 404:
         return jsonify({"error": "Connector not found or does not belong to user"}), 404
@@ -436,7 +418,6 @@ def get_email_connector_status(state_id: str):
         logger.error("AccountManager status poll failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
 
-
 @app.route("/api/email-step-callback/<provider>/<function_name>", methods=["POST"])
 @jwt_required()
 def run_email_step_callback(provider: str, function_name: str):
@@ -462,7 +443,6 @@ def run_email_step_callback(provider: str, function_name: str):
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
 
-
 @app.route("/api/email-connectors/oauth/callback/<provider>", methods=["GET"])
 def provider_oauth_callback(provider: str):
     """Handle provider OAuth callback and redirect to generic frontend callback page."""
@@ -475,13 +455,9 @@ def provider_oauth_callback(provider: str):
         auth_code = request.args.get("code")
         state = request.args.get("state")
         if not auth_code or not state:
-            return _redirect_with_params(
-                {"success": "0", "error": "Missing OAuth code or state"}
-            )
+            return _redirect_with_params({"success": "0", "error": "Missing OAuth code or state"})
 
-        callback_url = (
-            f"{backend_base_url}/api/email-connectors/oauth/callback/{provider}"
-        )
+        callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{provider}"
         response = account_manager_client.complete_provider_oauth(
             provider=provider,
             auth_code=auth_code,
@@ -490,9 +466,7 @@ def provider_oauth_callback(provider: str):
         )
         result = response.json()
         if response.status_code >= 400:
-            logger.warning(
-                "Provider OAuth callback failed for %s: %s", provider, result
-            )
+            logger.warning("Provider OAuth callback failed for %s: %s", provider, result)
             return _redirect_with_params(
                 {
                     "success": "0",
@@ -510,9 +484,7 @@ def provider_oauth_callback(provider: str):
         )
     except Exception as e:
         logger.error("Error in provider OAuth callback for %s: %s", provider, e)
-        return _redirect_with_params(
-            {"success": "0", "error": "Failed to complete authorization"}
-        )
+        return _redirect_with_params({"success": "0", "error": "Failed to complete authorization"})
 
 
 @app.route("/api/accounts/link", methods=["POST"])

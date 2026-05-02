@@ -6,12 +6,14 @@ import sys
 import tempfile
 from typing import Tuple
 
-import requests
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.pipeline_options import (
+    PdfPipelineOptions,
+)
 from flask import Flask, Response, jsonify, request
+import requests
 from werkzeug.datastructures import FileStorage
 
 from ai_service.ai_pipeline.ai_pipeline import AIPipeline

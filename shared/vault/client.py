@@ -3,7 +3,12 @@
 import os
 from typing import Any, Optional, Protocol, Union
 
-from shared.schemas.schemas import Doctor, Insurance, MedicalHistory, Medication
+from shared.schemas.schemas import (
+    Doctor,
+    Insurance,
+    MedicalHistory,
+    Medication,
+)
 from shared.vault.b4igo_api_storage import B4igoVaultApiStorage
 from shared.vault.storage import VaultStorage
 

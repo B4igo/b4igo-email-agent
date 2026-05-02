@@ -7,7 +7,6 @@ from .models import EmailSetupStep, ProviderType
 from .providers import EmailProvider, GmailProvider, ImapProvider
 from .storage import AccountStorage
 
-
 class AccountManagerService:
     """Service that orchestrates account storage and provider pulls."""
 
@@ -50,15 +49,11 @@ class AccountManagerService:
             return None
         return account.to_public_dict()
 
-    def seed_user(
-        self, username: str, password: str, role: str = "user"
-    ) -> dict[str, Any]:
+    def seed_user(self, username: str, password: str, role: str = "user") -> dict[str, Any]:
         """Create or update one user used by app-level authentication."""
         return self.storage.upsert_user(username=username, password=password, role=role)
 
-    def authenticate_user(
-        self, username: str, password: str
-    ) -> Optional[dict[str, Any]]:
+    def authenticate_user(self, username: str, password: str) -> Optional[dict[str, Any]]:
         """Return user profile when username/password matches, else None."""
         user = self.storage.get_user(username)
         if user is None or user.get("password") != password:
@@ -120,7 +115,7 @@ class AccountManagerService:
             redirect_uri=redirect_uri,
             connector_name=connector_name,
         )
-
+        
         return [
             {
                 "title": s.title,
@@ -168,11 +163,10 @@ class AccountManagerService:
             )
 
         try:
-            message = provider_adapter.CallFunction(
-                function_name, validated_steps, b4igo_user_id, self.storage
-            )
+            message = provider_adapter.CallFunction(function_name, validated_steps, b4igo_user_id, self.storage)
         except Exception as e:
             return {"success": False, "message": f"Error: {str(e)}"}
+
 
         if message:
             return {"success": False, "message": message}
@@ -185,7 +179,7 @@ class AccountManagerService:
         client_secrets_file: str = "client_secrets.json",
     ) -> str:
         """Pass OAuth callback to the correct provider.
-
+        
         Args:
             provider: The provider name.
             request_args: HTTP query parameters from the redirect.
@@ -194,7 +188,7 @@ class AccountManagerService:
         adapter = self.providers.get(provider)
         if adapter is None:
             return "Unsupported provider"
-
+            
         # Build backend redirect URL automatically
         redirect_uri = f"http://127.0.0.1:5100/api/providers/{provider}/oauth/callback"
 
@@ -202,7 +196,7 @@ class AccountManagerService:
         args = dict(request_args)
         args["client_secrets_file"] = client_secrets_file
         args["redirect_uri"] = redirect_uri
-
+        
         return adapter.HandleCallback(args, self.storage)
 
     def pull(self, b4igo_user_id: str, account_ids: list[int] = []) -> dict[str, Any]:
