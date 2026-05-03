@@ -68,14 +68,15 @@ class ImapProvider(EmailProvider):
         if not password:
             raise ValueError("IMAP account is missing required password credential")
 
-        since = _since_dt(account.last_read)
-        since_search = since.strftime("%d-%b-%Y")
-
         conn = imaplib.IMAP4_SSL(host, port) if use_ssl else imaplib.IMAP4(host, port)
         try:
             conn.login(str(username), str(password))
+            # Select with no readonly so we can mark messages as \Seen after pulling.
             conn.select(mailbox)
-            status, data = conn.search(None, "SINCE", since_search)
+            # UNSEEN is the dedup mechanism: once we mark a message \Seen below,
+            # the next poll will not return it. This is robust to clock skew and
+            # missing Date headers, unlike SINCE which has date-only granularity.
+            status, data = conn.search(None, "UNSEEN")
             if status != "OK" or not data or not data[0]:
                 return []
 
@@ -118,6 +119,10 @@ class ImapProvider(EmailProvider):
                     "receivedAt": received or datetime.now(timezone.utc).isoformat(),
                     "metadata": {"from": sender, "mailbox": mailbox},
                 })
+
+                # Mark as seen only after we have successfully captured the message.
+                # If we crash before this, the next poll will retry the same message.
+                conn.store(msg_id, "+FLAGS", "\\Seen")
 
             return out
         finally:
