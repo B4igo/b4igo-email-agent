@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+jinja2
+itsdangerous
+docker
+requests
+websockets
+python-multipart

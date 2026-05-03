@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <h1>Pipeline Trace</h1>
+  <p class="muted">Merged log stream from each pipeline stage. Color-coded by stage.</p>
+  <div class="legend">
+    {% for stage, container in stages %}
+      <span class="legend-item stage-{{ stage }}">{{ stage }} <small>({{ container }})</small></span>
+    {% endfor %}
+  </div>
+</section>
+
+<pre id="trace" class="log trace-log"></pre>
+
+<script>
+  (function() {
+    const out = document.getElementById('trace');
+    const es = new EventSource('/trace/stream');
+    es.onmessage = (ev) => {
+      try {
+        const { stage, line } = JSON.parse(ev.data);
+        const ts = new Date().toLocaleTimeString();
+        const span = document.createElement('span');
+        span.className = `line stage-${stage}`;
+        span.textContent = `[${ts}] [${stage.padEnd(7)}] ${line}\n`;
+        out.appendChild(span);
+        out.scrollTop = out.scrollHeight;
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', () => es.close());
+  })();
+</script>
+{% endblock %}

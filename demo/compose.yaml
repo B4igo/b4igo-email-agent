@@ -14,9 +14,10 @@
 #   ./setup.sh -d       # same but detached
 #
 # URLs:
-#   Frontend:  http://localhost:5173  (login: user / password)
-#   Webmail:   http://localhost:8888  (login: alice@test.local / password123)
-#   Backend:   http://localhost:5000/api/health
+#   Frontend:    http://localhost:5173  (login: user / password)
+#   Webmail:     http://localhost:8888  (login: alice@test.local / password123)
+#   Backend:     http://localhost:5000/api/health
+#   Admin panel: http://localhost:5400  (default password: admin; localhost-bound only)
 
 services:
   # ──────────────────────────────────────────────
@@ -116,6 +117,7 @@ services:
     environment:
       - FLASK_ENV=development
       - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
     depends_on:
       mailserver:
         condition: service_healthy
@@ -147,12 +149,32 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
+  # AI Service (text/attachment → parsed entries)
+  #
+  # Uses host networking so it can reach Ollama at 127.0.0.1:11434 (Ollama
+  # binds to localhost by default). Same pattern as mail-ingest. Other
+  # containers reach this service via host.docker.internal:5300.
+  # ──────────────────────────────────────────────
+  ai-service:
+    build:
+      context: ..
+      dockerfile: ai_service/Dockerfile
+    container_name: ai-service
+    network_mode: host
+    environment:
+      - OLLAMA_HOST=http://localhost:11434
+      - AI_SERVICE_PORT=5300
+      - PARSER_MODEL=${PARSER_MODEL:-}
+      - RERANKER_MODEL=${RERANKER_MODEL:-}
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
   # Mail Ingest (IMAP → AI pipeline → Backend API)
   # ──────────────────────────────────────────────
   mail-ingest:
     build:
       context: ..
-      dockerfile: mail-ingest/Dockerfile
+      dockerfile: mail_ingest/Dockerfile
     container_name: mail-ingest
     # Host network so we can reach Ollama on localhost:11434
     # (Ollama binds to 127.0.0.1 by default)
@@ -171,6 +193,38 @@ services:
         condition: service_completed_successfully
       backend:
         condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # B4iGO Admin Panel (demo-only operations UI)
+  #
+  # Mounts the Docker socket so it can show logs, exec into containers,
+  # and start/stop services. Bound to 127.0.0.1 only so the socket isn't
+  # ever reachable beyond the host running the demo.
+  # ──────────────────────────────────────────────
+  admin-panel:
+    build:
+      context: ..
+      dockerfile: admin-panel/Dockerfile
+    container_name: b4igo-admin-panel
+    ports:
+      - "127.0.0.1:5400:5400"
+    environment:
+      - B4IGO_ADMIN_PANEL_PASSWORD=${B4IGO_ADMIN_PANEL_PASSWORD:-admin}
+      - B4IGO_ADMIN_PANEL_SECRET=${B4IGO_ADMIN_PANEL_SECRET:-}
+      - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
+      - B4IGO_BACKEND_URL=http://backend:5000
+      - B4IGO_AI_SERVICE_URL=http://host.docker.internal:5300
+      - MAIL_HOST=mailserver
+      - MAIL_DOMAIN=test.local
+      - MAIL_SMTP_PORT=25
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   maildata:
