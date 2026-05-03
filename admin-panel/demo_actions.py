@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import smtplib
-import time
 from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -197,25 +196,27 @@ def send_custom(sender: str, recipient: str, subject: str, body: str) -> tuple[b
 # ---- One-click reset ----
 
 def one_click_reset() -> tuple[bool, list[str]]:
-    """Stop ingest, clear confirmation queue, restart core services.
+    """Drain in-flight pipeline state for a fresh demo run.
 
-    We deliberately do *not* drop the maildata volume here: a full data wipe
-    requires `docker compose down -v`, which can't be triggered from inside a
-    container without orchestrating compose itself. This reset gets the
-    pipeline back to a clean working-state for a fresh demo run.
+    Wipes the backend confirmation queue and the scheduler's transient Redis
+    queues (mail_pull_queue, dead_mail_queue), then restarts the backend so any
+    in-memory state is cleared. We deliberately do *not* drop the maildata
+    volume or the linked-account registry — a full data wipe requires
+    `docker compose down -v`, which can't be triggered from inside a container.
     """
     log: list[str] = []
 
-    ingest = docker_ops.safe_get("mail-ingest")
-    if ingest is not None:
-        try:
-            ingest.stop(timeout=5)
-            log.append("Stopped mail-ingest.")
-        except Exception as e:
-            log.append(f"Could not stop mail-ingest: {e}")
-
     ok, msg = clear_queue()
-    log.append(f"Clear queue: {msg}")
+    log.append(f"Clear confirmations queue: {msg}")
+
+    redis = docker_ops.safe_get("b4igo-redis")
+    if redis is not None:
+        try:
+            res = redis.exec_run(["redis-cli", "DEL", "mail_pull_queue", "dead_mail_queue"])
+            removed = res.output.decode("utf-8", errors="replace").strip()
+            log.append(f"Cleared scheduler queues (mail_pull_queue, dead_mail_queue): {removed} key(s)")
+        except Exception as e:
+            log.append(f"Could not clear scheduler queues: {e}")
 
     for name in ("b4igo-backend",):
         c = docker_ops.safe_get(name)
@@ -225,15 +226,6 @@ def one_click_reset() -> tuple[bool, list[str]]:
                 log.append(f"Restarted {name}.")
             except Exception as e:
                 log.append(f"Failed to restart {name}: {e}")
-
-    time.sleep(2)
-
-    if ingest is not None:
-        try:
-            ingest.start()
-            log.append("Started mail-ingest (it will re-process the inbox).")
-        except Exception as e:
-            log.append(f"Could not start mail-ingest: {e}")
 
     return True, log
 

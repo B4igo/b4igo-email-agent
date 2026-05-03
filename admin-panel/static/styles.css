@@ -106,7 +106,7 @@ pre.json { background: #0a0d12; border-radius: 6px; padding: 12px; overflow: aut
 .legend { display: flex; gap: 12px; flex-wrap: wrap; }
 .legend-item { padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--panel-2); }
 .legend-item.stage-mail, .line.stage-mail { color: #79c0ff; }
-.legend-item.stage-ingest, .line.stage-ingest { color: #d2a8ff; }
+.legend-item.stage-scheduler, .line.stage-scheduler { color: #d2a8ff; }
 .legend-item.stage-ai, .line.stage-ai { color: #ffa657; }
 .legend-item.stage-backend, .line.stage-backend { color: #56d364; }
 .line { display: block; }

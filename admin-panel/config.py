@@ -20,10 +20,11 @@ DEFAULT_CONTAINERS = [
     "mailserver",
     "webmail",
     "b4igo-account-manager",
+    "b4igo-redis",
+    "b4igo-scheduler",
+    "ai-service",
     "b4igo-backend",
     "b4igo-frontend",
-    "mail-ingest",
-    "ai-service",
 ]
 _env_containers = os.environ.get("B4IGO_PANEL_CONTAINERS", "")
 PANEL_CONTAINERS = (
@@ -34,7 +35,7 @@ PANEL_CONTAINERS = (
 
 PIPELINE_STAGE_CONTAINERS = {
     "mail": "mailserver",
-    "ingest": "mail-ingest",
+    "scheduler": "b4igo-scheduler",
     "ai": "ai-service",
     "backend": "b4igo-backend",
 }
