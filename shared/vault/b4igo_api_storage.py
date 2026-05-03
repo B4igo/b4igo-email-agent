@@ -53,6 +53,10 @@ _UPDATE_INPUT_TYPES: dict[str, str] = {
     "medical_history": "UpdateMedicalHistoryInput",
 }
 
+# deleteContact does not use the standard DeleteRequest input wrapper.
+# It takes direct arguments: id: [Int!]! and userId: String!
+_DIRECT_ARG_DELETE_TYPES: frozenset[str] = frozenset({"contact", "attorney"})
+
 _READ_QUERIES: dict[str, str] = {
     "doctor": "getAllDoctors",
     "insurance": "getHealthInsurancesByUserId",
@@ -69,6 +73,9 @@ _RESPONSE_ARRAY_FIELD: dict[str, str] = {
     "insurance": "healthInsurances",
     "medication": "data",
     "medical_history": "medicalHistory",
+    "education": "education",
+    "contact": "contacts",
+    "attorney": "contacts",
 }
 
 # Doctor create response nests the ID inside a 'data' object as 'doctorId'.
@@ -83,6 +90,9 @@ _RECORD_ID_FIELD: dict[str, str] = {
     "insurance": "insuranceId",
     "medication": "medicationId",
     "medical_history": "medicalHistoryId",
+    "education": "educationId",
+    "contact": "contactId",
+    "attorney": "contactId",
 }
 
 
@@ -288,13 +298,61 @@ class B4igoVaultApiStorage:
             "responses": [],
         }
 
+    def _education_create_variables(
+        self, username: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Map internal Education schema to CreateEducation variables.
+
+        Args:
+            username: User ID for the record.
+            payload: Education schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
+        return {
+            "userId": username,
+            "educationCertificateName": payload.get("degree", ""),
+            "nameAsPerCertificate": username,
+            "universityOrCollegeName": payload.get("institution", ""),
+            "isCurrentlyPursuing": payload.get("is_currently_pursuing", False),
+            "createdBy": username,
+            "others": "",
+            "files": [],
+        }
+
+    def _contact_create_variables(
+        self, username: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Map internal Contact or Attorney schema to CreateContact variables.
+
+        contactTypeId is a required list; value 1 is used as the default.
+        Fetch valid type IDs via: { getContactType { contacts { contactId contactName } } }
+
+        Args:
+            username: User ID for the record.
+            payload: Contact or Attorney schema field dict.
+
+        Returns:
+            GraphQL variables dict.
+        """
+        return {
+            "userId": username,
+            "name": payload.get("name", ""),
+            "contactTypeId": [1],
+            "createdBy": username,
+            "relationship": payload.get("relationship", ""),
+            "contactNumber": payload.get("phone", ""),
+            "emailId": payload.get("email", ""),
+        }
+
     def _create_variables_for_type(
         self, record_type: str, username: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
         """Build create mutation variables for the given record type.
 
         Args:
-            record_type: One of doctor, insurance, medication, medical_history.
+            record_type: One of the supported VAULT_RECORD_TYPES.
             username: User ID for the record.
             payload: Schema field dict.
 
@@ -306,6 +364,9 @@ class B4igoVaultApiStorage:
             "insurance": self._insurance_create_variables,
             "medication": self._medication_create_variables,
             "medical_history": self._medical_history_create_variables,
+            "education": self._education_create_variables,
+            "contact": self._contact_create_variables,
+            "attorney": self._contact_create_variables,
         }
         builder = builders.get(record_type)
         if builder:
@@ -428,13 +489,18 @@ class B4igoVaultApiStorage:
         """Build delete mutation variables for the given record type.
 
         Args:
-            record_type: One of doctor, insurance, medication, medical_history.
+            record_type: One of the supported VAULT_RECORD_TYPES.
             record_id: Record ID to delete.
             username: User ID.
 
         Returns:
-            GraphQL variables dict.
+            GraphQL variables dict. For DIRECT_ARG_DELETE_TYPES the dict is
+            used as top-level variables; for all others it is wrapped in
+            {"input": ...} by delete_record.
         """
+        if record_type in _DIRECT_ARG_DELETE_TYPES:
+            # deleteContact takes id: [Int!]! directly (not via DeleteRequest)
+            return {"id": [record_id], "userId": username}
         variables: dict[str, Any] = {"id": record_id, "userId": username}
         if record_type == "medical_history":
             variables["sectionId"] = 1
@@ -497,7 +563,7 @@ mutation($input: {input_type}!) {{
         """Build the GraphQL mutation string for deleting a record.
 
         Args:
-            record_type: One of doctor, insurance, medication, medical_history.
+            record_type: One of the supported VAULT_RECORD_TYPES.
 
         Returns:
             GraphQL mutation string.
@@ -505,6 +571,18 @@ mutation($input: {input_type}!) {{
         mutation_name = _DELETE_MUTATIONS.get(record_type, "")
         if not mutation_name:
             return ""
+        if record_type in _DIRECT_ARG_DELETE_TYPES:
+            # deleteContact takes direct args, not a DeleteRequest wrapper
+            return f"""
+mutation($id: [Int!]!, $userId: String!) {{
+  {mutation_name}(id: $id, userId: $userId) {{
+    code
+    success
+    message
+    error
+  }}
+}}
+"""
         return f"""
 mutation($input: DeleteRequest) {{
   {mutation_name}(input: $input) {{
@@ -599,6 +677,43 @@ query {query_name}($userId: String!) {{
   }}
 }}
 """
+        elif record_type == "education":
+            return f"""
+query {query_name}($userId: String!) {{
+  {query_name}(userId: $userId) {{
+    code
+    success
+    message
+    error
+    {array_field} {{
+      {id_field}
+      userId
+      educationCertificateName
+      universityOrCollegeName
+      isCurrentlyPursuing
+    }}
+  }}
+}}
+"""
+        elif record_type in ("contact", "attorney"):
+            return f"""
+query {query_name}($userId: String!) {{
+  {query_name}(userId: $userId) {{
+    code
+    success
+    message
+    error
+    {array_field} {{
+      {id_field}
+      userId
+      name
+      relationship
+      contactNumber
+      emailId
+    }}
+  }}
+}}
+"""
         return ""
 
     def _normalize_record(
@@ -640,6 +755,19 @@ query {query_name}($userId: String!) {{
             payload = {
                 "disease": raw.get("recordTypeName", ""),
                 "date": raw.get("recordDate", ""),
+            }
+        elif record_type == "education":
+            payload = {
+                "degree": raw.get("educationCertificateName", ""),
+                "institution": raw.get("universityOrCollegeName", ""),
+                "is_currently_pursuing": raw.get("isCurrentlyPursuing", False),
+            }
+        elif record_type in ("contact", "attorney"):
+            payload = {
+                "name": raw.get("name", ""),
+                "relationship": raw.get("relationship", ""),
+                "phone": raw.get("contactNumber", ""),
+                "email": raw.get("emailId", ""),
             }
         else:
             payload = {}
@@ -786,7 +914,12 @@ query {query_name}($userId: String!) {{
         if not mutation:
             return False
 
-        variables = {"input": self._delete_variables_for_type(record_type, id, username)}
+        raw_vars = self._delete_variables_for_type(record_type, id, username)
+        variables = (
+            raw_vars
+            if record_type in _DIRECT_ARG_DELETE_TYPES
+            else {"input": raw_vars}
+        )
         data = self._request(mutation, variables)
 
         mutation_name = _DELETE_MUTATIONS.get(record_type, "")

@@ -1,5 +1,5 @@
-"""Smoke test: exercises add_record + delete_record for all four record types
-against the live B4iGO dev API via B4igoVaultApiStorage.
+"""Smoke test: exercises add_record + delete_record for health, education, and
+personal/legal record types against the live B4iGO dev API via B4igoVaultApiStorage.
 
 Usage:
     B4IGO_API_BASE_URL=https://gatewayservice-test-684919379591.us-central1.run.app \
@@ -61,6 +61,7 @@ session.headers.update(
 storage = B4igoVaultApiStorage(session=session)
 
 TEST_CASES = [
+    # Health
     (
         "doctor",
         {"doctor_name": "Smoke Test Doctor", "location": "555-0000"},
@@ -76,6 +77,32 @@ TEST_CASES = [
     (
         "medical_history",
         {"disease": "Smoke Test Condition", "description": "Integration test"},
+    ),
+    # Education
+    (
+        "education",
+        {
+            "institution": "Smoke Test University",
+            "degree": "B.Sc. Smoke Testing",
+            "is_currently_pursuing": False,
+        },
+    ),
+    # Personal / Legal (both use createContact)
+    (
+        "contact",
+        {
+            "name": "Smoke Test Contact",
+            "relationship": "colleague",
+            "email": "smoke@test.example.com",
+        },
+    ),
+    (
+        "attorney",
+        {
+            "name": "Smoke Test Attorney",
+            "specialty": "Integration Testing",
+            "email": "attorney@smoke.example.com",
+        },
     ),
 ]
 

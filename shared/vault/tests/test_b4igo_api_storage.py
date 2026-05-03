@@ -484,3 +484,185 @@ class TestB4igoVaultApiStorage(TestCase):
         self.assertIn("variables", body)
         self.assertIsInstance(body["query"], str)
         self.assertIsInstance(body["variables"], dict)
+
+    # --- education add_record ---
+
+    def test_add_record_education_returns_id(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "createEducation", success=True, id_value=20
+        )
+        rid = self.storage.add_record(
+            "alice",
+            "education",
+            {"institution": "State University", "degree": "B.Sc. Computer Science"},
+        )
+        self.assertEqual(rid, 20)
+
+    def test_add_record_education_sends_correct_variables(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "createEducation", success=True, id_value=20
+        )
+        self.storage.add_record(
+            "alice",
+            "education",
+            {
+                "institution": "State University",
+                "degree": "B.Sc. Computer Science",
+                "is_currently_pursuing": True,
+            },
+        )
+        _, kwargs = self.session.post.call_args
+        variables = kwargs["json"]["variables"]["input"]
+        self.assertEqual(variables["userId"], "alice")
+        self.assertEqual(variables["universityOrCollegeName"], "State University")
+        self.assertEqual(variables["educationCertificateName"], "B.Sc. Computer Science")
+        self.assertTrue(variables["isCurrentlyPursuing"])
+        self.assertEqual(variables["createdBy"], "alice")
+        self.assertEqual(variables["files"], [])
+
+    # --- contact add_record ---
+
+    def test_add_record_contact_returns_id(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "createContact", success=True, id_value=30
+        )
+        rid = self.storage.add_record(
+            "alice",
+            "contact",
+            {"name": "Jane Doe", "relationship": "friend"},
+        )
+        self.assertEqual(rid, 30)
+
+    def test_add_record_contact_sends_correct_variables(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "createContact", success=True, id_value=30
+        )
+        self.storage.add_record(
+            "alice",
+            "contact",
+            {
+                "name": "Jane Doe",
+                "relationship": "friend",
+                "phone": "555-1234",
+                "email": "jane@example.com",
+            },
+        )
+        _, kwargs = self.session.post.call_args
+        variables = kwargs["json"]["variables"]["input"]
+        self.assertEqual(variables["userId"], "alice")
+        self.assertEqual(variables["name"], "Jane Doe")
+        self.assertEqual(variables["relationship"], "friend")
+        self.assertEqual(variables["contactNumber"], "555-1234")
+        self.assertEqual(variables["emailId"], "jane@example.com")
+        self.assertIsInstance(variables["contactTypeId"], list)
+
+    # --- attorney add_record ---
+
+    def test_add_record_attorney_returns_id(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "createContact", success=True, id_value=31
+        )
+        rid = self.storage.add_record(
+            "alice",
+            "attorney",
+            {"name": "Sarah Morgan", "specialty": "Estate Planning"},
+        )
+        self.assertEqual(rid, 31)
+
+    def test_add_record_attorney_sends_correct_variables(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "createContact", success=True, id_value=31
+        )
+        self.storage.add_record(
+            "alice",
+            "attorney",
+            {"name": "Sarah Morgan", "email": "s.morgan@law.com"},
+        )
+        _, kwargs = self.session.post.call_args
+        variables = kwargs["json"]["variables"]["input"]
+        self.assertEqual(variables["userId"], "alice")
+        self.assertEqual(variables["name"], "Sarah Morgan")
+        self.assertEqual(variables["emailId"], "s.morgan@law.com")
+        self.assertIsInstance(variables["contactTypeId"], list)
+
+    # --- education / contact get_records ---
+
+    def test_get_records_returns_normalized_education_list(self) -> None:
+        self.session.post.return_value = _graphql_query_response(
+            "getEducationByUserId",
+            "education",
+            [
+                {
+                    "educationId": 20,
+                    "userId": "alice",
+                    "educationCertificateName": "B.Sc. CS",
+                    "universityOrCollegeName": "State U",
+                    "isCurrentlyPursuing": False,
+                }
+            ],
+        )
+        records = self.storage.get_records("alice", record_type="education")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["id"], 20)
+        self.assertEqual(records[0]["payload"]["degree"], "B.Sc. CS")
+        self.assertEqual(records[0]["payload"]["institution"], "State U")
+
+    def test_get_records_returns_normalized_contact_list(self) -> None:
+        self.session.post.return_value = _graphql_query_response(
+            "getContactByUserId",
+            "contacts",
+            [
+                {
+                    "contactId": 30,
+                    "userId": "alice",
+                    "name": "Jane Doe",
+                    "relationship": "friend",
+                    "contactNumber": "555-1234",
+                    "emailId": "jane@example.com",
+                }
+            ],
+        )
+        records = self.storage.get_records("alice", record_type="contact")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["id"], 30)
+        self.assertEqual(records[0]["payload"]["name"], "Jane Doe")
+        self.assertEqual(records[0]["payload"]["relationship"], "friend")
+        self.assertEqual(records[0]["payload"]["phone"], "555-1234")
+        self.assertEqual(records[0]["payload"]["email"], "jane@example.com")
+
+    # --- education / contact delete_record ---
+
+    def test_delete_record_education_sends_correct_variables(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "deleteEducationById", success=True
+        )
+        ok = self.storage.delete_record(20, record_type="education", username="alice")
+        self.assertTrue(ok)
+        _, kwargs = self.session.post.call_args
+        variables = kwargs["json"]["variables"]["input"]
+        self.assertEqual(variables["id"], 20)
+        self.assertEqual(variables["userId"], "alice")
+
+    def test_delete_record_contact_sends_correct_variables(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "deleteContact", success=True
+        )
+        ok = self.storage.delete_record(30, record_type="contact", username="alice")
+        self.assertTrue(ok)
+        _, kwargs = self.session.post.call_args
+        # deleteContact uses direct args, not an input wrapper
+        variables = kwargs["json"]["variables"]
+        self.assertEqual(variables["id"], [30])
+        self.assertEqual(variables["userId"], "alice")
+
+    def test_delete_record_attorney_sends_correct_variables(self) -> None:
+        self.session.post.return_value = _graphql_response(
+            "deleteContact", success=True
+        )
+        ok = self.storage.delete_record(31, record_type="attorney", username="alice")
+        self.assertTrue(ok)
+        _, kwargs = self.session.post.call_args
+        # deleteContact uses direct args, not an input wrapper
+        variables = kwargs["json"]["variables"]
+        self.assertEqual(variables["id"], [31])
+        self.assertEqual(variables["userId"], "alice")
