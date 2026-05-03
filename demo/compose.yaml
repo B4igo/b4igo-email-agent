@@ -1,12 +1,17 @@
 # B4iGO Email Agent - Full Demo Stack
 #
 # Combines:
-#   - smtp-imap-test mail server + seeded emails + webmail (bundled in demo/smtp-imap-test/)
+#   - smtp-imap-test mail server + webmail (bundled in demo/smtp-imap-test/)
 #   - Host Ollama (expects qwen3:8b to be available via `ollama pull qwen3:8b`)
-#   - b4igo backend (Flask API) — Dockerfile in backend/
-#   - b4igo frontend (React/Vite) — Dockerfile in frontend/
 #   - account manager (auth + linked accounts) — Dockerfile in account-manager/
-#   - mail ingest (IMAP → AI pipeline → backend) — Dockerfile in mail-ingest/
+#   - scheduler (polls account-manager, hands off to ai-service) — Dockerfile in scheduler/
+#   - ai-service (parses email content via Ollama) — Dockerfile in ai_service/
+#   - b4igo backend (Flask API + confirmation queue) — Dockerfile in backend/
+#   - b4igo frontend (React/Vite) — Dockerfile in frontend/
+#   - admin panel (operations UI) — Dockerfile in admin-panel/
+#   - bootstrap (one-shot: links the demo IMAP mailbox so polling kicks off)
+#
+# Mailboxes start empty. Use the admin panel at :5400 to send test emails.
 #
 # Usage:
 #   cd demo/
@@ -53,21 +58,6 @@ services:
       retries: 30
       start_period: 30s
     restart: unless-stopped
-
-  # ──────────────────────────────────────────────
-  # Seed mailboxes with test emails
-  # ──────────────────────────────────────────────
-  seed:
-    build: ./smtp-imap-test/seed
-    container_name: mail-seed
-    depends_on:
-      mailserver:
-        condition: service_healthy
-    environment:
-      - MAIL_HOST=mailserver
-      - MAIL_DOMAIN=test.local
-      - SMTP_PORT=25
-      - IMAP_PORT=143
 
   # ──────────────────────────────────────────────
   # Webmail UI (SnappyMail)
@@ -151,9 +141,14 @@ services:
   # ──────────────────────────────────────────────
   # AI Service (text/attachment → parsed entries)
   #
-  # Uses host networking so it can reach Ollama at 127.0.0.1:11434 (Ollama
-  # binds to localhost by default). Same pattern as mail-ingest. Other
-  # containers reach this service via host.docker.internal:5300.
+  # Demo expedience: uses host networking so it can reach Ollama at
+  # 127.0.0.1:11434 (Ollama binds to localhost by default on the developer's
+  # machine). In production Ollama will run as its own container and ai-service
+  # can move back to the bridge network.
+  #
+  # Other containers reach this service via host.docker.internal:5300.
+  # BACKEND_URL must use localhost (not the docker hostname) because of the
+  # host networking — there is no DNS for `backend` in this namespace.
   # ──────────────────────────────────────────────
   ai-service:
     build:
@@ -164,35 +159,76 @@ services:
     environment:
       - OLLAMA_HOST=http://localhost:11434
       - AI_SERVICE_PORT=5300
+      - BACKEND_URL=http://localhost:5000
       - PARSER_MODEL=${PARSER_MODEL:-}
       - RERANKER_MODEL=${RERANKER_MODEL:-}
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
-  # Mail Ingest (IMAP → AI pipeline → Backend API)
+  # Redis (queues for the scheduler)
   # ──────────────────────────────────────────────
-  mail-ingest:
+  redis:
+    image: redis:7-alpine
+    container_name: b4igo-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Scheduler (polls account-manager for new mail, hands off to ai-service)
+  #
+  # Bridge-networked, but ai-service is host-networked — so we reach it via
+  # host.docker.internal:5300.
+  # ──────────────────────────────────────────────
+  scheduler:
     build:
       context: ..
-      dockerfile: mail_ingest/Dockerfile
-    container_name: mail-ingest
-    # Host network so we can reach Ollama on localhost:11434
-    # (Ollama binds to 127.0.0.1 by default)
-    network_mode: host
+      dockerfile: scheduler/Dockerfile
+    container_name: b4igo-scheduler
+    ports:
+      - "5200:5200"
     environment:
-      - IMAP_HOST=localhost
-      - IMAP_PORT=1143
-      - IMAP_USER=alice@test.local
-      - IMAP_PASS=password123
-      - BACKEND_URL=http://localhost:5000
-      - BACKEND_USER=user
-      - OLLAMA_HOST=http://localhost:11434
-      - POLL_INTERVAL=0  # run once; set >0 to poll
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - AI_SERVICE_URL=http://host.docker.internal:5300
+      - POLL_INTERVAL_SECONDS=5
+      - QUEUE_INTERVAL_SECONDS=5
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      seed:
-        condition: service_completed_successfully
-      backend:
+      redis:
         condition: service_healthy
+      account-manager:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Bootstrap (one-shot): link the demo IMAP mailbox and register it with the
+  # scheduler so polling kicks off. Stand-in for what a real user would do via
+  # the "Link account" frontend flow. Idempotent — safe to re-run.
+  # ──────────────────────────────────────────────
+  bootstrap:
+    build: ./bootstrap
+    container_name: b4igo-bootstrap
+    environment:
+      - ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - SCHEDULER_URL=http://scheduler:5200
+      - DEMO_USER=user
+      - IMAP_EMAIL=alice@test.local
+      - IMAP_PASSWORD=password123
+      - IMAP_HOST=mailserver
+      - IMAP_PORT=143
+    depends_on:
+      account-manager:
+        condition: service_healthy
+      scheduler:
+        condition: service_started
+    restart: "no"
 
   # ──────────────────────────────────────────────
   # B4iGO Admin Panel (demo-only operations UI)
