@@ -352,6 +352,18 @@ def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
     except json.JSONDecodeError:
         config = {}
 
+    last_read_raw = row["last_read"]
+    last_read: datetime | None
+    if last_read_raw is None:
+        last_read = None
+    elif isinstance(last_read_raw, datetime):
+        last_read = last_read_raw
+    else:
+        try:
+            last_read = datetime.fromisoformat(str(last_read_raw))
+        except ValueError:
+            last_read = None
+
     return LinkedAccount(
         id=row["id"],
         b4igo_user_id=row["b4igo_user_id"],
@@ -360,7 +372,7 @@ def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
         display_name=row["display_name"],
         credentials=credentials,
         config=config,
-        last_read=row["last_read"],
+        last_read=last_read,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
