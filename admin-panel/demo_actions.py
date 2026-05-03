@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import mimetypes
 import smtplib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from email.mime.application import MIMEApplication
+from email.mime.audio import MIMEAudio
+from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 from typing import Iterable, Optional
 
 import docker_ops
@@ -18,6 +26,8 @@ from config import (
     MAIL_SMTP_PORT,
 )
 
+logger = logging.getLogger("admin-panel")
+
 SEED_ACCOUNTS = [
     "alice@test.local",
     "bob@test.local",
@@ -25,6 +35,8 @@ SEED_ACCOUNTS = [
     "diana@test.local",
     "eve@test.local",
 ]
+
+SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 
 
 @dataclass
@@ -37,73 +49,57 @@ class Scenario:
     sender_local: str
     subject: str
     body: str
+    # Resolved absolute paths to attachment files. The on-disk JSON stores
+    # them as paths relative to the scenario file's directory.
+    attachments: list[Path] = field(default_factory=list)
 
 
-SCENARIOS: list[Scenario] = [
-    Scenario(
-        key="appointment",
-        label="Doctor appointment reminder",
-        sender_name="Dr. Sarah Mitchell - Lakewood Family Medicine",
-        sender_local="appointments@lakewoodfamilymed",
-        subject="Appointment Reminder: Tuesday, March 24 at 10:30 AM",
-        body=(
-            "This is a reminder that you have an upcoming appointment.\n\n"
-            "Provider: Dr. Sarah Mitchell\n"
-            "Date: Tuesday, March 24, 2026\n"
-            "Time: 10:30 AM\n"
-            "Location: Lakewood Family Medicine, 450 Oak Street, Suite 200\n"
-        ),
-    ),
-    Scenario(
-        key="shipping",
-        label="Shipping notification (Amazon)",
-        sender_name="Amazon.com",
-        sender_local="shipment-tracking@amazon",
-        subject="Your Amazon order has shipped!",
-        body=(
-            "Order #112-9374856-2938471\n"
-            "Carrier: UPS\n"
-            "Tracking: 1Z999AA10123456784\n"
-            "Estimated delivery: March 19-21, 2026\n"
-        ),
-    ),
-    Scenario(
-        key="password_reset",
-        label="Password reset (GitHub)",
-        sender_name="GitHub",
-        sender_local="noreply@github",
-        subject="[GitHub] Password reset request",
-        body=(
-            "We received a request to reset the password for your account.\n"
-            "If you made this request, click below within 24 hours:\n"
-            "https://github.example.com/password_reset/abc123def456\n"
-        ),
-    ),
-    Scenario(
-        key="bill",
-        label="Utility bill due (PG&E)",
-        sender_name="Pacific Gas & Electric",
-        sender_local="notifications@pge",
-        subject="Your electricity bill is due March 28",
-        body=(
-            "Account Number: ****6739\n"
-            "Amount Due: $142.37\n"
-            "Due Date: March 28, 2026\n"
-        ),
-    ),
-    Scenario(
-        key="meeting",
-        label="Zoom meeting reminder",
-        sender_name="Zoom",
-        sender_local="no-reply@zoom",
-        subject="Reminder: Team Standup starts in 15 minutes",
-        body=(
-            "Topic: Team Standup\n"
-            "Time: March 16, 2026 09:00 AM (Mountain Time)\n"
-            "Join: https://zoom.example.com/j/98765432100?pwd=abcDEF123\n"
-        ),
-    ),
-]
+def _load_scenarios() -> list[Scenario]:
+    """Load every scenarios/*.json file at module import time.
+
+    The filename (sans .json) is the scenario key, so adding a new test email
+    is a single new file and no Python changes. Attachment paths in the JSON
+    are resolved relative to the JSON file's parent directory.
+    """
+    scenarios: list[Scenario] = []
+    if not SCENARIOS_DIR.exists():
+        logger.warning("scenarios directory %s missing", SCENARIOS_DIR)
+        return scenarios
+
+    for path in sorted(SCENARIOS_DIR.glob("*.json")):
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("skipping %s: %s", path.name, exc)
+            continue
+
+        attachments: list[Path] = []
+        for rel in data.get("attachments", []) or []:
+            resolved = (path.parent / rel).resolve()
+            if not resolved.is_file():
+                logger.warning(
+                    "scenario %s references missing attachment %s",
+                    path.stem,
+                    resolved,
+                )
+                continue
+            attachments.append(resolved)
+
+        scenarios.append(
+            Scenario(
+                key=path.stem,
+                label=data.get("label", path.stem),
+                sender_name=data.get("from_name", ""),
+                sender_local=data.get("from_local", "no-reply"),
+                subject=data.get("subject", ""),
+                body=data.get("body", ""),
+                attachments=attachments,
+            )
+        )
+    return scenarios
+
+
+SCENARIOS: list[Scenario] = _load_scenarios()
 
 
 def scenarios_by_key() -> dict[str, Scenario]:
@@ -147,14 +143,47 @@ def _smtp_send(messages: Iterable[tuple[str, str, MIMEMultipart]]) -> int:
     return sent
 
 
+def _attach_file(msg: MIMEMultipart, path: Path) -> None:
+    """Attach one file to a multipart message, picking the right MIME class."""
+    ctype, encoding = mimetypes.guess_type(str(path))
+    if ctype is None or encoding is not None:
+        ctype = "application/octet-stream"
+    maintype, subtype = ctype.split("/", 1)
+    data = path.read_bytes()
+
+    part: MIMEBase
+    if maintype == "text":
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            text = data.decode("utf-8", errors="replace")
+        part = MIMEText(text, subtype)
+    elif maintype == "image":
+        part = MIMEImage(data, subtype)
+    elif maintype == "audio":
+        part = MIMEAudio(data, subtype)
+    else:
+        part = MIMEApplication(data, subtype)
+
+    part.add_header("Content-Disposition", "attachment", filename=path.name)
+    msg.attach(part)
+
+
 def _build(
-    sender_name: str, sender_addr: str, recipient: str, subject: str, body: str
+    sender_name: str,
+    sender_addr: str,
+    recipient: str,
+    subject: str,
+    body: str,
+    attachments: Optional[list[Path]] = None,
 ) -> MIMEMultipart:
     msg = MIMEMultipart()
     msg["From"] = f"{sender_name} <{sender_addr}>" if sender_name else sender_addr
     msg["To"] = recipient
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
+    for path in attachments or []:
+        _attach_file(msg, path)
     return msg
 
 
@@ -164,12 +193,15 @@ def send_scenario(scenario_key: str, recipient: str) -> tuple[bool, str]:
     if s is None:
         return False, f"Unknown scenario: {scenario_key}"
     sender_addr = f"{s.sender_local}@{MAIL_DOMAIN}"
-    msg = _build(s.sender_name, sender_addr, recipient, s.subject, s.body)
+    msg = _build(
+        s.sender_name, sender_addr, recipient, s.subject, s.body, s.attachments
+    )
     try:
         _smtp_send([(sender_addr, recipient, msg)])
     except Exception as e:
         return False, f"SMTP error: {e}"
-    return True, f"Sent '{s.label}' to {recipient}."
+    suffix = f" with {len(s.attachments)} attachment(s)" if s.attachments else ""
+    return True, f"Sent '{s.label}' to {recipient}{suffix}."
 
 
 def send_bulk(count: int, recipient: str) -> tuple[bool, str]:
@@ -186,7 +218,14 @@ def send_bulk(count: int, recipient: str) -> tuple[bool, str]:
             (
                 sender_addr,
                 recipient,
-                _build(s.sender_name, sender_addr, recipient, subject, s.body),
+                _build(
+                    s.sender_name,
+                    sender_addr,
+                    recipient,
+                    subject,
+                    s.body,
+                    s.attachments,
+                ),
             )
         )
     try:
