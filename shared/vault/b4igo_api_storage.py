@@ -206,6 +206,7 @@ class B4igoVaultApiStorage:
         """
         return {
             "userId": username,
+            "typeId": 1,
             "doctorName": payload.get("doctor_name", ""),
             "contactInformation": payload.get("location", ""),
         }
@@ -224,9 +225,10 @@ class B4igoVaultApiStorage:
         """
         return {
             "userId": username,
-            "insuranceName": payload.get("type_of_health_insurance", ""),
-            "policyNumber": "",
-            "provider": "",
+            "memberName": payload.get("type_of_health_insurance", ""),
+            "insuranceTypeId": 1,
+            "dependents": [],
+            "files": [],
         }
 
     def _medication_create_variables(
@@ -243,8 +245,9 @@ class B4igoVaultApiStorage:
         """
         return {
             "userId": username,
-            "medication": payload.get("name_of_medicine", ""),
-            "allergy": payload.get("side_effect", ""),
+            "medicineName": payload.get("name_of_medicine", ""),
+            "sideEffect": payload.get("side_effect", ""),
+            "medicationFiles": [],
         }
 
     def _medical_history_create_variables(
@@ -261,11 +264,16 @@ class B4igoVaultApiStorage:
         """
         disease = payload.get("disease", "")
         description = payload.get("description", "")
-        history = f"{disease} - {description}" if description else disease
+        general_health = f"{disease} - {description}" if description else disease
         return {
             "userId": username,
-            "history": history,
             "createdBy": username,
+            "userName": username,
+            "generalHealth": general_health,
+            "age": 0,
+            "bloodGroupId": 1,
+            "sectionId": 1,
+            "responses": [],
         }
 
     def _create_variables_for_type(
@@ -415,7 +423,10 @@ class B4igoVaultApiStorage:
         Returns:
             GraphQL variables dict.
         """
-        return {"id": record_id, "userId": username}
+        variables: dict[str, Any] = {"id": record_id, "userId": username}
+        if record_type == "medical_history":
+            variables["sectionId"] = 1
+        return variables
 
     # --- GraphQL mutation/query builders ---
 

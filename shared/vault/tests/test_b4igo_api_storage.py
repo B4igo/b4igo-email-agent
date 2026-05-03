@@ -150,8 +150,9 @@ class TestB4igoVaultApiStorage(TestCase):
         body = kwargs["json"]
         variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
-        self.assertEqual(variables["medication"], "Ibuprofen")
-        self.assertEqual(variables["allergy"], "Nausea")
+        self.assertEqual(variables["medicineName"], "Ibuprofen")
+        self.assertEqual(variables["sideEffect"], "Nausea")
+        self.assertEqual(variables["medicationFiles"], [])
 
     def test_add_record_insurance_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
@@ -166,9 +167,10 @@ class TestB4igoVaultApiStorage(TestCase):
         body = kwargs["json"]
         variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
-        self.assertEqual(variables["insuranceName"], "PPO")
-        self.assertEqual(variables["policyNumber"], "")
-        self.assertEqual(variables["provider"], "")
+        self.assertEqual(variables["memberName"], "PPO")
+        self.assertEqual(variables["insuranceTypeId"], 1)
+        self.assertEqual(variables["dependents"], [])
+        self.assertEqual(variables["files"], [])
 
     def test_add_record_medical_history_sends_correct_variables(self) -> None:
         self.session.post.return_value = _graphql_response(
@@ -183,8 +185,10 @@ class TestB4igoVaultApiStorage(TestCase):
         body = kwargs["json"]
         variables = body["variables"]["input"]
         self.assertEqual(variables["userId"], "alice")
-        self.assertEqual(variables["history"], "Hypertension - Stage 1")
+        self.assertEqual(variables["generalHealth"], "Hypertension - Stage 1")
         self.assertEqual(variables["createdBy"], "alice")
+        self.assertEqual(variables["userName"], "alice")
+        self.assertEqual(variables["responses"], [])
 
     def test_add_record_medical_history_without_description(self) -> None:
         self.session.post.return_value = _graphql_response(
@@ -198,7 +202,7 @@ class TestB4igoVaultApiStorage(TestCase):
         _, kwargs = self.session.post.call_args
         body = kwargs["json"]
         variables = body["variables"]["input"]
-        self.assertEqual(variables["history"], "Diabetes")
+        self.assertEqual(variables["generalHealth"], "Diabetes")
 
     def test_add_record_posts_to_graphql_endpoint(self) -> None:
         self.session.post.return_value = _graphql_response(
