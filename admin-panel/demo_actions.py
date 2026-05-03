@@ -8,8 +8,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Iterable, Optional
 
+import docker_ops
 import requests
-
 from config import (
     BACKEND_ADMIN_TOKEN,
     BACKEND_URL,
@@ -17,8 +17,6 @@ from config import (
     MAIL_HOST,
     MAIL_SMTP_PORT,
 )
-import docker_ops
-
 
 SEED_ACCOUNTS = [
     "alice@test.local",
@@ -31,6 +29,8 @@ SEED_ACCOUNTS = [
 
 @dataclass
 class Scenario:
+    """One preset email scenario sendable from the admin panel demo page."""
+
     key: str
     label: str
     sender_name: str
@@ -107,12 +107,15 @@ SCENARIOS: list[Scenario] = [
 
 
 def scenarios_by_key() -> dict[str, Scenario]:
+    """Return scenarios indexed by their key."""
     return {s.key: s for s in SCENARIOS}
 
 
 # ---- Confirmation queue ----
 
+
 def clear_queue(username: Optional[str] = None) -> tuple[bool, str]:
+    """Clear the backend confirmation queue via the admin endpoint."""
     if not BACKEND_ADMIN_TOKEN:
         return False, "B4IGO_ADMIN_TOKEN not set on backend; admin endpoint disabled."
     url = f"{BACKEND_URL}/api/confirmations/admin/clear"
@@ -133,6 +136,7 @@ def clear_queue(username: Optional[str] = None) -> tuple[bool, str]:
 
 # ---- SMTP helpers ----
 
+
 def _smtp_send(messages: Iterable[tuple[str, str, MIMEMultipart]]) -> int:
     """Send a batch of (from, to, message) tuples through one SMTP connection."""
     sent = 0
@@ -143,7 +147,9 @@ def _smtp_send(messages: Iterable[tuple[str, str, MIMEMultipart]]) -> int:
     return sent
 
 
-def _build(sender_name: str, sender_addr: str, recipient: str, subject: str, body: str) -> MIMEMultipart:
+def _build(
+    sender_name: str, sender_addr: str, recipient: str, subject: str, body: str
+) -> MIMEMultipart:
     msg = MIMEMultipart()
     msg["From"] = f"{sender_name} <{sender_addr}>" if sender_name else sender_addr
     msg["To"] = recipient
@@ -153,6 +159,7 @@ def _build(sender_name: str, sender_addr: str, recipient: str, subject: str, bod
 
 
 def send_scenario(scenario_key: str, recipient: str) -> tuple[bool, str]:
+    """Send one preset scenario email to a recipient."""
     s = scenarios_by_key().get(scenario_key)
     if s is None:
         return False, f"Unknown scenario: {scenario_key}"
@@ -166,6 +173,7 @@ def send_scenario(scenario_key: str, recipient: str) -> tuple[bool, str]:
 
 
 def send_bulk(count: int, recipient: str) -> tuple[bool, str]:
+    """Send N preset emails (cycling through scenarios) to a recipient."""
     if count <= 0 or count > 100:
         return False, "Count must be between 1 and 100."
     scenarios = SCENARIOS
@@ -174,7 +182,13 @@ def send_bulk(count: int, recipient: str) -> tuple[bool, str]:
         s = scenarios[i % len(scenarios)]
         sender_addr = f"{s.sender_local}@{MAIL_DOMAIN}"
         subject = f"{s.subject} (#{i + 1})"
-        msgs.append((sender_addr, recipient, _build(s.sender_name, sender_addr, recipient, subject, s.body)))
+        msgs.append(
+            (
+                sender_addr,
+                recipient,
+                _build(s.sender_name, sender_addr, recipient, subject, s.body),
+            )
+        )
     try:
         sent = _smtp_send(msgs)
     except Exception as e:
@@ -182,7 +196,10 @@ def send_bulk(count: int, recipient: str) -> tuple[bool, str]:
     return True, f"Sent {sent} email(s) to {recipient}."
 
 
-def send_custom(sender: str, recipient: str, subject: str, body: str) -> tuple[bool, str]:
+def send_custom(
+    sender: str, recipient: str, subject: str, body: str
+) -> tuple[bool, str]:
+    """Send one custom email with the given subject and body."""
     if "@" not in sender or "@" not in recipient:
         return False, "Sender and recipient must be email addresses."
     msg = _build("", sender, recipient, subject, body)
@@ -194,6 +211,7 @@ def send_custom(sender: str, recipient: str, subject: str, body: str) -> tuple[b
 
 
 # ---- One-click reset ----
+
 
 def one_click_reset() -> tuple[bool, list[str]]:
     """Drain in-flight pipeline state for a fresh demo run.
@@ -212,9 +230,14 @@ def one_click_reset() -> tuple[bool, list[str]]:
     redis = docker_ops.safe_get("b4igo-redis")
     if redis is not None:
         try:
-            res = redis.exec_run(["redis-cli", "DEL", "mail_pull_queue", "dead_mail_queue"])
+            res = redis.exec_run(
+                ["redis-cli", "DEL", "mail_pull_queue", "dead_mail_queue"]
+            )
             removed = res.output.decode("utf-8", errors="replace").strip()
-            log.append(f"Cleared scheduler queues (mail_pull_queue, dead_mail_queue): {removed} key(s)")
+            log.append(
+                "cleared scheduler queues "
+                f"(mail_pull_queue, dead_mail_queue): {removed} key(s)"
+            )
         except Exception as e:
             log.append(f"Could not clear scheduler queues: {e}")
 
@@ -232,8 +255,11 @@ def one_click_reset() -> tuple[bool, list[str]]:
 
 # ---- AI playground ----
 
+
 def ai_dry_run(text: str) -> tuple[bool, dict | str]:
+    """Run text through the AI service in dry-run mode and return the parsed entries."""
     from config import AI_SERVICE_URL
+
     try:
         r = requests.post(
             f"{AI_SERVICE_URL}/api/ai/text",

@@ -20,7 +20,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from email.mime.text import MIMEText
-from typing import AsyncIterator, Callable, Optional
+from typing import AsyncIterator, Optional
 
 import docker_ops
 
@@ -94,15 +94,18 @@ class StageEvent:
 
 @dataclass
 class E2ERun:
+    """Mutable state for one in-flight end-to-end pipeline test."""
+
     run_id: str
     since: int  # docker logs `since` (unix seconds, inclusive)
-    queue: asyncio.Queue[Optional[StageEvent]] = field(default_factory=asyncio.Queue)
+    queue: asyncio.Queue[StageEvent] = field(default_factory=asyncio.Queue)
     stages_done: set[str] = field(default_factory=set)
     tasks: list[asyncio.Task] = field(default_factory=list)
     start_time: float = field(default_factory=time.time)
     finished: bool = False
 
     def elapsed_ms(self) -> int:
+        """Return milliseconds elapsed since the run started."""
         return int((time.time() - self.start_time) * 1000)
 
 
@@ -111,6 +114,7 @@ _lock = asyncio.Lock()
 
 
 def get_run(run_id: str) -> Optional[E2ERun]:
+    """Return the run for the given id, or None if no such run exists."""
     return _runs.get(run_id)
 
 
@@ -208,7 +212,9 @@ async def start_run(
         if stage.skip_pattern:
             run.tasks.append(
                 asyncio.create_task(
-                    _watch_pattern(stage, run, "ai-service", stage.skip_pattern, "skipped")
+                    _watch_pattern(
+                        stage, run, "ai-service", stage.skip_pattern, "skipped"
+                    )
                 )
             )
 

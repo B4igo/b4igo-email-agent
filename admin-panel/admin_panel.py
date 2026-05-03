@@ -11,14 +11,18 @@ import asyncio
 import json
 import logging
 import time
+from dataclasses import asdict
 from pathlib import Path
 
+import config
+import demo_actions
+import docker_ops
+import e2e_runner
 from fastapi import (
     Depends,
     FastAPI,
     Form,
     HTTPException,
-    Query,
     Request,
     WebSocket,
     WebSocketDisconnect,
@@ -34,12 +38,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, TimestampSigner
 
-import config
-import demo_actions
-import docker_ops
-import e2e_runner
-from dataclasses import asdict
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -47,7 +45,11 @@ logging.basicConfig(
 logger = logging.getLogger("admin-panel")
 
 app = FastAPI(title="B4iGO Admin Panel")
-app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).parent / "static")),
+    name="static",
+)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 signer = TimestampSigner(config.SESSION_SECRET)
@@ -68,12 +70,14 @@ def _is_authenticated(request: Request) -> bool:
 
 
 def require_auth(request: Request):
+    """Reject unauthenticated requests with HTTP 401."""
     if not _is_authenticated(request):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
+    """Redirect unauthenticated users to the login page."""
     path = request.url.path
     if (
         path.startswith("/static")
@@ -86,6 +90,7 @@ async def auth_middleware(request: Request, call_next):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request, next: str = "/", error: str | None = None):
+    """Render the login form."""
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -99,9 +104,11 @@ async def login_submit(
     password: str = Form(...),
     next: str = Form("/"),
 ):
+    """Validate the password and start a signed session."""
     if password != config.ADMIN_PASSWORD:
         return RedirectResponse(
-            url=f"/login?next={next}&error=Invalid+password", status_code=303,
+            url=f"/login?next={next}&error=Invalid+password",
+            status_code=303,
         )
     token = signer.sign(b"ok").decode()
     response = RedirectResponse(url=next or "/", status_code=303)
@@ -117,6 +124,7 @@ async def login_submit(
 
 @app.post("/logout")
 async def logout():
+    """Clear the session cookie and bounce to login."""
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(config.SESSION_COOKIE)
     return response
@@ -124,6 +132,7 @@ async def logout():
 
 @app.get("/healthz")
 async def healthz():
+    """Report basic liveness for the admin panel."""
     return {"ok": True}
 
 
@@ -132,6 +141,7 @@ async def healthz():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
+    """Render the container overview dashboard."""
     summaries = docker_ops.list_summaries()
     return templates.TemplateResponse(
         request,
@@ -142,6 +152,7 @@ async def dashboard(request: Request):
 
 @app.get("/health-data")
 async def health_data(_: None = Depends(require_auth)):
+    """Return container summaries as JSON for the dashboard auto-refresh."""
     rows = docker_ops.list_summaries()
     for row in rows:
         row["last_log"] = docker_ops.get_last_log_line(row["name"])
@@ -153,6 +164,7 @@ async def health_data(_: None = Depends(require_auth)):
 
 @app.get("/containers/{name}", response_class=HTMLResponse)
 async def container_view(request: Request, name: str):
+    """Render the per-container detail page with logs and actions."""
     if not docker_ops.is_managed(name):
         raise HTTPException(404, f"Container '{name}' is not managed")
     info = docker_ops.inspect(name)
@@ -171,6 +183,7 @@ async def container_view(request: Request, name: str):
 
 @app.post("/containers/{name}/lifecycle")
 async def container_lifecycle(name: str, action: str = Form(...)):
+    """Start, stop, restart, or kill one managed container."""
     if action not in {"start", "stop", "restart", "kill"}:
         raise HTTPException(400, "Invalid action")
     try:
@@ -182,6 +195,7 @@ async def container_lifecycle(name: str, action: str = Form(...)):
 
 @app.get("/containers/{name}/logs/stream")
 async def container_logs_stream(name: str):
+    """Stream live container logs as server-sent events."""
     if not docker_ops.is_managed(name):
         raise HTTPException(404)
 
@@ -201,6 +215,7 @@ async def container_logs_stream(name: str):
 
 @app.websocket("/containers/{name}/exec")
 async def container_exec(websocket: WebSocket, name: str):
+    """Open a websocket-backed shell inside the named container."""
     if not _is_authenticated(websocket):
         await websocket.close(code=1008)
         return
@@ -294,6 +309,7 @@ async def container_exec(websocket: WebSocket, name: str):
 
 @app.get("/demo", response_class=HTMLResponse)
 async def demo_page(request: Request):
+    """Render the demo actions page."""
     return templates.TemplateResponse(
         request,
         "demo.html",
@@ -312,6 +328,7 @@ def _flash(ok: bool, msg: str) -> HTMLResponse:
 
 @app.post("/demo/clear-queue")
 async def demo_clear_queue(username: str | None = Form(None)):
+    """Clear the backend confirmation queue, optionally scoped to one user."""
     ok, msg = demo_actions.clear_queue(username or None)
     return _flash(ok, msg)
 
@@ -321,6 +338,7 @@ async def demo_send_scenario(
     scenario_key: str = Form(...),
     recipient: str = Form(...),
 ):
+    """Send one preset scenario email to the chosen recipient."""
     ok, msg = demo_actions.send_scenario(scenario_key, recipient)
     return _flash(ok, msg)
 
@@ -330,6 +348,7 @@ async def demo_send_bulk(
     count: int = Form(...),
     recipient: str = Form(...),
 ):
+    """Send N scenario emails in a row to the chosen recipient."""
     ok, msg = demo_actions.send_bulk(count, recipient)
     return _flash(ok, msg)
 
@@ -341,17 +360,20 @@ async def demo_send_custom(
     subject: str = Form(...),
     body: str = Form(...),
 ):
+    """Send one custom email built from the form inputs."""
     ok, msg = demo_actions.send_custom(sender, recipient, subject, body)
     return _flash(ok, msg)
 
 
 @app.post("/demo/reset")
 async def demo_reset():
+    """Drain in-flight pipeline state for a fresh demo run."""
     ok, log = demo_actions.one_click_reset()
     items = "".join(f"<li>{line}</li>" for line in log)
     cls = "ok" if ok else "err"
     return HTMLResponse(
-        f'<div class="flash {cls}"><strong>Reset complete</strong><ul>{items}</ul></div>'
+        f'<div class="flash {cls}"><strong>Reset complete</strong>'
+        f"<ul>{items}</ul></div>"
     )
 
 
@@ -360,6 +382,7 @@ async def demo_reset():
 
 @app.get("/trace", response_class=HTMLResponse)
 async def trace_page(request: Request):
+    """Render the merged pipeline log trace page."""
     return templates.TemplateResponse(
         request,
         "trace.html",
@@ -372,6 +395,7 @@ async def trace_page(request: Request):
 
 @app.get("/trace/stream")
 async def trace_stream():
+    """Stream merged log lines from each pipeline-stage container."""
     stages = config.PIPELINE_STAGE_CONTAINERS
 
     async def gen():
@@ -411,6 +435,7 @@ async def trace_stream():
 
 @app.get("/playground", response_class=HTMLResponse)
 async def playground_page(request: Request):
+    """Render the AI playground page."""
     return templates.TemplateResponse(
         request,
         "playground.html",
@@ -423,6 +448,7 @@ async def playground_page(request: Request):
 
 @app.post("/playground/run")
 async def playground_run(text: str = Form(...)):
+    """Run text through the AI service in dry-run mode and show the result."""
     ok, result = demo_actions.ai_dry_run(text)
     if not ok:
         return _flash(False, str(result))
@@ -435,6 +461,7 @@ async def playground_run(text: str = Form(...)):
 
 @app.get("/e2e", response_class=HTMLResponse)
 async def e2e_page(request: Request):
+    """Render the end-to-end pipeline test page."""
     return templates.TemplateResponse(
         request,
         "e2e.html",
@@ -448,6 +475,7 @@ async def e2e_page(request: Request):
 
 @app.post("/e2e/start")
 async def e2e_start(recipient: str = Form(...)):
+    """Kick off an end-to-end pipeline test and return the run id."""
     run = await e2e_runner.start_run(
         mail_host=config.MAIL_HOST,
         mail_port=config.MAIL_SMTP_PORT,
@@ -458,6 +486,7 @@ async def e2e_start(recipient: str = Form(...)):
 
 @app.get("/e2e/runs/{run_id}/stream")
 async def e2e_stream(run_id: str):
+    """Stream stage events for one E2E run as server-sent events."""
     run = e2e_runner.get_run(run_id)
     if run is None:
         raise HTTPException(404, f"Unknown run id {run_id}")

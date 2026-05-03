@@ -1,4 +1,3 @@
-from apscheduler.schedulers.background import BackgroundScheduler
 import json
 import logging
 import os
@@ -8,7 +7,8 @@ from io import BytesIO
 
 import redis
 import requests
-from flask import Flask, request, jsonify
+from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask, jsonify, request
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,7 +19,9 @@ logger = logging.getLogger("scheduler")
 
 # Service endpoints, configurable via env so the same code runs locally and in compose.
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
-ACCOUNT_MANAGER_URL = os.environ.get("ACCOUNT_MANAGER_URL", "http://localhost:5100").rstrip("/")
+ACCOUNT_MANAGER_URL = os.environ.get(
+    "ACCOUNT_MANAGER_URL", "http://localhost:5100"
+).rstrip("/")
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "30"))
@@ -29,44 +31,38 @@ aiCallText = f"{AI_SERVICE_URL}/api/ai/text"
 aiCallAttachments = f"{AI_SERVICE_URL}/api/ai/text-with-attachments"
 accountEmailCall = f"{ACCOUNT_MANAGER_URL}/api/pull"
 
-#Redis Connection Setup------------------------------
-queue = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=0,
-    decode_responses=True)
+# Redis Connection Setup------------------------------
+queue = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
 MainQueue = "mail_pull_queue"
 AccountQueue = "account_registry_queue"
 DeadQueue = "dead_mail_queue"
 
-#Flask Endpoint to receive new account registries
+# Flask Endpoint to receive new account registries
 app = Flask(__name__)
+
 
 @app.route("/api/scheduler/registry", methods=["POST"])
 def registerAccount():
+    """Register one linked account for periodic polling."""
     data = request.get_json(silent=True) or {}
 
     required = ["b4igoUserId", "accountId"]
     if any(field not in data for field in required):
         return jsonify({"error": "Required fields missing"}), 400
 
-    account = {
-        "b4igoUserId": data["b4igoUserId"],
-        "accountId": data["accountId"]
-    }
+    account = {"b4igoUserId": data["b4igoUserId"], "accountId": data["accountId"]}
     queue.sadd(AccountQueue, json.dumps(account))
 
-    return jsonify ({
-        "message": "Registered for polling",
-        "account": account 
-    }),201
+    return jsonify({"message": "Registered for polling", "account": account}), 201
 
-#Schedule Processing---------------------------
+
+# Schedule Processing---------------------------
 def pollToQueue():
+    """Poll account-manager for new emails and queue them in Redis."""
     try:
         logger.info("starting poll cycle")
 
-        #pull registered accounts from redis
+        # pull registered accounts from redis
         accounts = queue.smembers(AccountQueue)
 
         for accountJson in accounts:
@@ -78,10 +74,12 @@ def pollToQueue():
             response = requests.post(
                 accountEmailCall,
                 json={"b4igoUserId": user, "accountIds": [accountId]},
-                timeout=10
+                timeout=10,
             )
             if response.status_code != 200:
-                logger.warning("pull failed for user %s: status %s", user, response.status_code)
+                logger.warning(
+                    "pull failed for user %s: status %s", user, response.status_code
+                )
                 continue
             try:
                 payload = response.json()
@@ -94,28 +92,33 @@ def pollToQueue():
             for err in errors:
                 logger.warning(
                     "provider pull error for user %s account %s: %s",
-                    user, err.get("accountId"), err.get("error"),
+                    user,
+                    err.get("accountId"),
+                    err.get("error"),
                 )
 
             for email in emails:
                 metadata = email.get("metadata") or {}
-                job={"user":user,
-                     "accountId": accountId,
-                     "retry": 0,
-                     "email":{
-                         "subject": email.get("subject",""),
-                         "from": metadata.get("from", ""),
-                         "body": email.get("body",""),
-                         "attachments": email.get("attachments", [])
-                     }
+                job = {
+                    "user": user,
+                    "accountId": accountId,
+                    "retry": 0,
+                    "email": {
+                        "subject": email.get("subject", ""),
+                        "from": metadata.get("from", ""),
+                        "body": email.get("body", ""),
+                        "attachments": email.get("attachments", []),
+                    },
                 }
-                queue.rpush(MainQueue,json.dumps(job))
+                queue.rpush(MainQueue, json.dumps(job))
 
             logger.info("queued %d email(s) for user %s", len(emails), user)
     except Exception as exc:
         logger.exception("poll cycle failed: %s", exc)
 
+
 def queueProcessing():
+    """Pop one queued email from Redis and hand it off to ai-service."""
     job = None
     try:
         job = queue.lpop(MainQueue)
@@ -127,17 +130,17 @@ def queueProcessing():
 
         logger.info(
             "processing job for user %s account %s subject=%r",
-            jobData["user"], jobData["accountId"],
+            jobData["user"],
+            jobData["accountId"],
             jobData.get("email", {}).get("subject", ""),
         )
 
         email = jobData.get("email", {})
-        text = f"""
-        From: {email.get('from','')}
-        Subject: {email.get('subject','')}
-
-        {email.get('body','')}
-        """
+        text = (
+            f"From: {email.get('from', '')}\n"
+            f"Subject: {email.get('subject', '')}\n\n"
+            f"{email.get('body', '')}"
+        )
         attachments = email.get("attachments") or []
 
         normalized_files = []
@@ -148,61 +151,70 @@ def queueProcessing():
             else:
                 filename = f"attachment_{i}.txt"
                 content = str(att)
-            normalized_files.append((
-                "files", (filename, BytesIO(content.encode()))
-                ))
+            normalized_files.append(("files", (filename, BytesIO(content.encode()))))
 
         if not normalized_files:
             response = requests.post(
                 aiCallText,
                 json={"text": text, "username": jobData["user"]},
-                timeout=300)
+                timeout=300,
+            )
         else:
             response = requests.post(
                 aiCallAttachments,
                 data={"text": text, "username": jobData["user"]},
                 files=normalized_files,
-                timeout=300
-                )
+                timeout=300,
+            )
 
-        if response.status_code in (200,201,202):
+        if response.status_code in (200, 201, 202):
             logger.info(
                 "ai handoff succeeded for user %s account %s",
-                jobData["user"], jobData["accountId"],
+                jobData["user"],
+                jobData["accountId"],
             )
         else:
             jobData["retry"] += 1
-            if jobData["retry"] >=3:
+            if jobData["retry"] >= 3:
                 logger.warning(
-                    "ai handoff exhausted retries for user %s account %s, sending to dead queue",
-                    jobData["user"], jobData["accountId"],
+                    "ai handoff exhausted retries for user %s account %s,"
+                    " sending to dead queue",
+                    jobData["user"],
+                    jobData["accountId"],
                 )
                 queue.rpush(DeadQueue, json.dumps(jobData))
             else:
                 logger.warning(
                     "ai handoff failed status %s for user %s, retrying (%d/3)",
-                    response.status_code, jobData["user"], jobData["retry"],
+                    response.status_code,
+                    jobData["user"],
+                    jobData["retry"],
                 )
                 queue.rpush(MainQueue, json.dumps(jobData))
 
     except Exception as exc:
         logger.exception("queue processing failed: %s", exc)
-        #if a job was dequeued put it back
+        # if a job was dequeued put it back
         if job:
             queue.rpush(MainQueue, job)
 
-#Setup Scheduler--------------------------
+
+# Setup Scheduler--------------------------
 scheduler = BackgroundScheduler()
 scheduler.add_job(queueProcessing, "interval", seconds=QUEUE_INTERVAL_SECONDS)
 scheduler.add_job(pollToQueue, "interval", seconds=POLL_INTERVAL_SECONDS)
 scheduler.start()
 logger.info(
     "scheduler started: poll=%ss queue=%ss ai=%s account_manager=%s redis=%s:%d",
-    POLL_INTERVAL_SECONDS, QUEUE_INTERVAL_SECONDS,
-    AI_SERVICE_URL, ACCOUNT_MANAGER_URL, REDIS_HOST, REDIS_PORT,
+    POLL_INTERVAL_SECONDS,
+    QUEUE_INTERVAL_SECONDS,
+    AI_SERVICE_URL,
+    ACCOUNT_MANAGER_URL,
+    REDIS_HOST,
+    REDIS_PORT,
 )
 
-#start Flask
+# start Flask
 app.run(host="0.0.0.0", port=5200)
 
 while True:

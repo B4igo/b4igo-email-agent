@@ -10,7 +10,9 @@ SESSION_TTL_SECONDS = 8 * 60 * 60
 
 BACKEND_URL = os.environ.get("B4IGO_BACKEND_URL", "http://backend:5000").rstrip("/")
 BACKEND_ADMIN_TOKEN = os.environ.get("B4IGO_ADMIN_TOKEN", "")
-AI_SERVICE_URL = os.environ.get("B4IGO_AI_SERVICE_URL", "http://ai-service:5300").rstrip("/")
+AI_SERVICE_URL = os.environ.get(
+    "B4IGO_AI_SERVICE_URL", "http://ai-service:5300"
+).rstrip("/")
 
 MAIL_HOST = os.environ.get("MAIL_HOST", "mailserver")
 MAIL_DOMAIN = os.environ.get("MAIL_DOMAIN", "test.local")

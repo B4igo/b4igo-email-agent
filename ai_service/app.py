@@ -1,4 +1,4 @@
-"""Defines flask api for AI pipeline microservice"""
+"""Defines flask api for AI pipeline microservice."""
 
 import logging
 import os
@@ -6,14 +6,12 @@ import sys
 import tempfile
 from typing import Tuple
 
-from docling.document_converter import DocumentConverter, PdfFormatOption
+import requests
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import (
-    PdfPipelineOptions,
-)
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from flask import Flask, Response, jsonify, request
-import requests
 from werkzeug.datastructures import FileStorage
 
 from ai_service.ai_pipeline.ai_pipeline import AIPipeline
@@ -88,7 +86,8 @@ def enqueue_confirmation(username: str, payload: str):
     else:
         logger.warning(
             "failed to enqueue confirmation: status %s body %s",
-            resp.status_code, resp.text,
+            resp.status_code,
+            resp.text,
         )
 
 
@@ -111,7 +110,10 @@ def parse_text() -> FlaskResponse:
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    dry_run = bool(payload.get("dry_run")) or request.args.get("dry_run") in ("1", "true")
+    dry_run = bool(payload.get("dry_run")) or request.args.get("dry_run") in (
+        "1",
+        "true",
+    )
 
     entries = pipeline(text)
     if dry_run:

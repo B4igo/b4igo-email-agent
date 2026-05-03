@@ -12,15 +12,15 @@ import asyncio
 from typing import AsyncIterator, Optional
 
 import docker
+from config import PANEL_CONTAINERS, SELF_CONTAINER_NAME
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-
-from config import PANEL_CONTAINERS, SELF_CONTAINER_NAME
 
 _client: Optional[docker.DockerClient] = None
 
 
 def client() -> docker.DockerClient:
+    """Return the cached Docker SDK client, creating it on first use."""
     global _client
     if _client is None:
         _client = docker.from_env()
@@ -28,18 +28,21 @@ def client() -> docker.DockerClient:
 
 
 def is_managed(name: str) -> bool:
+    """Return whether the named container is in the panel's allowlist."""
     if name == SELF_CONTAINER_NAME:
         return False
     return name in PANEL_CONTAINERS
 
 
 def get(name: str) -> Container:
+    """Return the named container, raising if it is not managed."""
     if not is_managed(name):
         raise PermissionError(f"Container '{name}' is not managed by this panel")
     return client().containers.get(name)
 
 
 def safe_get(name: str) -> Optional[Container]:
+    """Return the named container or None if missing or unmanaged."""
     try:
         return get(name)
     except (NotFound, PermissionError):
@@ -52,31 +55,36 @@ def list_summaries() -> list[dict]:
     for name in PANEL_CONTAINERS:
         c = safe_get(name)
         if c is None:
-            out.append({
-                "name": name,
-                "state": "absent",
-                "status": "not found",
-                "image": "",
-                "ports": {},
-                "health": None,
-                "started_at": None,
-            })
+            out.append(
+                {
+                    "name": name,
+                    "state": "absent",
+                    "status": "not found",
+                    "image": "",
+                    "ports": {},
+                    "health": None,
+                    "started_at": None,
+                }
+            )
             continue
         attrs = c.attrs
         state = attrs.get("State", {})
-        out.append({
-            "name": name,
-            "state": state.get("Status", "unknown"),
-            "status": c.status,
-            "image": (attrs.get("Config", {}).get("Image", "") or ""),
-            "ports": attrs.get("NetworkSettings", {}).get("Ports", {}) or {},
-            "health": (state.get("Health") or {}).get("Status"),
-            "started_at": state.get("StartedAt"),
-        })
+        out.append(
+            {
+                "name": name,
+                "state": state.get("Status", "unknown"),
+                "status": c.status,
+                "image": (attrs.get("Config", {}).get("Image", "") or ""),
+                "ports": attrs.get("NetworkSettings", {}).get("Ports", {}) or {},
+                "health": (state.get("Health") or {}).get("Status"),
+                "started_at": state.get("StartedAt"),
+            }
+        )
     return out
 
 
 def inspect(name: str) -> dict:
+    """Return a normalized inspect dict for the named container."""
     c = get(name)
     a = c.attrs
     cfg = a.get("Config", {}) or {}
@@ -87,7 +95,9 @@ def inspect(name: str) -> dict:
         "cmd": cfg.get("Cmd") or cfg.get("Entrypoint") or [],
         "env": cfg.get("Env") or [],
         "ports": (a.get("NetworkSettings", {}) or {}).get("Ports", {}) or {},
-        "networks": list(((a.get("NetworkSettings", {}) or {}).get("Networks", {}) or {}).keys()),
+        "networks": list(
+            ((a.get("NetworkSettings", {}) or {}).get("Networks", {}) or {}).keys()
+        ),
         "state": state.get("Status"),
         "health": (state.get("Health") or {}).get("Status"),
         "started_at": state.get("StartedAt"),
@@ -96,6 +106,7 @@ def inspect(name: str) -> dict:
 
 
 def lifecycle(name: str, action: str) -> str:
+    """Apply a lifecycle action (start, stop, restart, kill) to the container."""
     c = get(name)
     if action == "start":
         c.start()
@@ -112,6 +123,7 @@ def lifecycle(name: str, action: str) -> str:
 
 
 def tail_logs(name: str, lines: int = 200) -> str:
+    """Return the last N log lines for the named container."""
     c = get(name)
     try:
         return c.logs(tail=lines, timestamps=False).decode("utf-8", errors="replace")
@@ -134,11 +146,13 @@ async def stream_logs(name: str, since: Optional[int] = None) -> AsyncIterator[s
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
                     asyncio.run_coroutine_threadsafe(
-                        queue.put(line.decode("utf-8", errors="replace")), loop,
+                        queue.put(line.decode("utf-8", errors="replace")),
+                        loop,
                     )
             if buf:
                 asyncio.run_coroutine_threadsafe(
-                    queue.put(buf.decode("utf-8", errors="replace")), loop,
+                    queue.put(buf.decode("utf-8", errors="replace")),
+                    loop,
                 )
         except Exception as e:
             asyncio.run_coroutine_threadsafe(queue.put(f"<stream error: {e}>"), loop)
@@ -157,6 +171,7 @@ async def stream_logs(name: str, since: Optional[int] = None) -> AsyncIterator[s
 
 
 def exec_create(name: str, cmd: list[str]) -> str:
+    """Create a Docker exec instance for the given command."""
     c = get(name)
     api = client().api
     resp = api.exec_create(
@@ -182,6 +197,7 @@ def exec_start_socket(exec_id: str):
 
 
 def exec_resize(exec_id: str, rows: int, cols: int) -> None:
+    """Resize the TTY of an existing exec instance."""
     try:
         client().api.exec_resize(exec_id, height=rows, width=cols)
     except APIError:
@@ -189,6 +205,7 @@ def exec_resize(exec_id: str, rows: int, cols: int) -> None:
 
 
 def get_last_log_line(name: str) -> str:
+    """Return the last log line of the named container, or empty string."""
     c = safe_get(name)
     if c is None:
         return ""

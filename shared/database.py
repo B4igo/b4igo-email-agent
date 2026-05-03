@@ -129,5 +129,6 @@ class Database:
                 )
             return cursor.rowcount
 
+
 # Global database instance
 db = Database()

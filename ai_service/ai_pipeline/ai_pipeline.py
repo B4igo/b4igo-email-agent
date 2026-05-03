@@ -17,8 +17,11 @@ SUPPORTED_DOMAINS: frozenset[str] = frozenset({"health", "legal", "personal"})
 
 
 class AIPipeline:
+    """Domain classifier plus parser composed into one callable."""
 
-    def __init__(self, reranker_model: Optional[str] = None, parser_model: Optional[str] = None) -> None:
+    def __init__(
+        self, reranker_model: Optional[str] = None, parser_model: Optional[str] = None
+    ) -> None:
         self.domain_classifier = DomainClassifier(reranker_model)
         self.domain_parser = DomainParser(parser_model)
 
@@ -33,9 +36,7 @@ class AIPipeline:
         Returns:
             list[BaseModel]: Pydantic models for each entry. Empty list if the
             classified domain is not one we have a parser for.
-
         """
-
         # TODO: Validate size less than max tokens
         # Either have to batch or truncate
         classification_result = self.domain_classifier(text)
