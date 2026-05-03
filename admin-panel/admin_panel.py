@@ -37,6 +37,8 @@ from itsdangerous import BadSignature, TimestampSigner
 import config
 import demo_actions
 import docker_ops
+import e2e_runner
+from dataclasses import asdict
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("admin-panel")
@@ -423,3 +425,46 @@ async def playground_run(text: str = Form(...)):
         return _flash(False, str(result))
     pretty = json.dumps(result, indent=2)
     return HTMLResponse(f'<pre class="json">{pretty}</pre>')
+
+
+# ---------- E2E pipeline test ----------
+
+
+@app.get("/e2e", response_class=HTMLResponse)
+async def e2e_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "e2e.html",
+        {
+            "stages": e2e_runner.stages_for_template(),
+            "recipient": f"alice@{config.MAIL_DOMAIN}",
+            "active": "e2e",
+        },
+    )
+
+
+@app.post("/e2e/start")
+async def e2e_start(recipient: str = Form(...)):
+    run = await e2e_runner.start_run(
+        mail_host=config.MAIL_HOST,
+        mail_port=config.MAIL_SMTP_PORT,
+        recipient=recipient,
+    )
+    return JSONResponse({"run_id": run.run_id})
+
+
+@app.get("/e2e/runs/{run_id}/stream")
+async def e2e_stream(run_id: str):
+    run = e2e_runner.get_run(run_id)
+    if run is None:
+        raise HTTPException(404, f"Unknown run id {run_id}")
+
+    async def gen():
+        try:
+            async for evt in e2e_runner.stream_events(run):
+                yield f"data: {json.dumps(asdict(evt))}\n\n"
+            yield "event: done\ndata: {}\n\n"
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
