@@ -4,12 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from shared.schemas.schemas import (
-    Doctor,
-    Insurance,
-    MedicalHistory,
-    Medication,
-)
+from shared.schemas.schemas import Doctor, Insurance, MedicalHistory, Medication
 from shared.vault.client import VaultClient
 from shared.vault.storage import VaultStorage
 from shared.vault.utils import parse_vault_record
