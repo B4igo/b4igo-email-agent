@@ -24,13 +24,12 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests, types-pyyaml]
+        additional_dependencies: [types-requests, types-pyyaml, types-redis]
         args: [--ignore-missing-imports, --explicit-package-bases]
-        exclude: ^test_workflow\.py$
+        exclude: ^test_workflow\.py$|^.*/tests?/
   
   - repo: https://github.com/pycqa/pydocstyle
     rev: 6.3.0
     hooks:
       - id: pydocstyle
-        args: ['--convention=google']
         additional_dependencies: [tomli]

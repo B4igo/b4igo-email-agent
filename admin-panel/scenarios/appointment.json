@@ -1,0 +1,8 @@
+{
+  "label": "Doctor appointment reminder",
+  "from_name": "Dr. Sarah Mitchell - Lakewood Family Medicine",
+  "from_local": "appointments@lakewoodfamilymed",
+  "subject": "Appointment Reminder: Tuesday, March 24 at 10:30 AM",
+  "body": "This is a reminder that you have an upcoming appointment.\n\nProvider: Dr. Sarah Mitchell\nDate: Tuesday, March 24, 2026\nTime: 10:30 AM\nLocation: Lakewood Family Medicine, 450 Oak Street, Suite 200\n",
+  "attachments": []
+}

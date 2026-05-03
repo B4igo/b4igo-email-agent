@@ -1,0 +1,8 @@
+{
+  "label": "Zoom meeting reminder",
+  "from_name": "Zoom",
+  "from_local": "no-reply@zoom",
+  "subject": "Reminder: Team Standup starts in 15 minutes",
+  "body": "Topic: Team Standup\nTime: March 16, 2026 09:00 AM (Mountain Time)\nJoin: https://zoom.example.com/j/98765432100?pwd=abcDEF123\n",
+  "attachments": []
+}

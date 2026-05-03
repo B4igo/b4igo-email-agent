@@ -1,0 +1,8 @@
+{
+  "label": "Utility bill due (PG&E)",
+  "from_name": "Pacific Gas & Electric",
+  "from_local": "notifications@pge",
+  "subject": "Your electricity bill is due March 28",
+  "body": "Account Number: ****6739\nAmount Due: $142.37\nDue Date: March 28, 2026\n",
+  "attachments": []
+}

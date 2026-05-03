@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <h1>Services</h1>
+  <p class="muted">Auto-refreshes every 5s. Click a row to drill in.</p>
+</section>
+<table class="grid"
+       hx-get="/health-data"
+       hx-trigger="load, every 5s"
+       hx-swap="none"
+       hx-on::after-request="renderRows(event)">
+  <thead>
+    <tr>
+      <th>Container</th>
+      <th>State</th>
+      <th>Health</th>
+      <th>Image</th>
+      <th>Last log line</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="svc-rows">
+    {% for s in summaries %}
+    <tr>
+      <td><a href="/containers/{{ s.name }}">{{ s.name }}</a></td>
+      <td><span class="state {{ s.state }}">{{ s.state }}</span></td>
+      <td>{{ s.health or "-" }}</td>
+      <td class="mono">{{ s.image }}</td>
+      <td class="mono ellipsis">…</td>
+      <td>
+        <a class="btn small" href="/containers/{{ s.name }}">open</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<script>
+function renderRows(evt) {
+  if (!evt.detail.successful) return;
+  let rows;
+  try { rows = JSON.parse(evt.detail.xhr.responseText); }
+  catch { return; }
+  const tbody = document.getElementById('svc-rows');
+  tbody.innerHTML = rows.map(s => `
+    <tr>
+      <td><a href="/containers/${s.name}">${s.name}</a></td>
+      <td><span class="state ${s.state}">${s.state}</span></td>
+      <td>${s.health || "-"}</td>
+      <td class="mono">${s.image || ""}</td>
+      <td class="mono ellipsis" title="${(s.last_log||'').replace(/"/g,'&quot;')}">${escapeHtml(s.last_log||"")}</td>
+      <td><a class="btn small" href="/containers/${s.name}">open</a></td>
+    </tr>
+  `).join("");
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+</script>
+{% endblock %}
