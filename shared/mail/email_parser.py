@@ -20,7 +20,7 @@ try:
 except ImportError:
     BEAUTIFULSOUP_AVAILABLE = False
     logger.warning(
-        "BeautifulSoup4 (bs4) not available. HTML parsing will use fallback parser."
+        "beautifulsoup4 not available, html parsing will use fallback parser"
     )
 
 
@@ -209,7 +209,7 @@ def extract_text_content(body: str) -> str:
                 return unescape(text)
             except Exception as e:
                 logger.warning(
-                    f"Failed to parse HTML with BeautifulSoup: {e}, using fallback"
+                    "failed to parse html with beautifulsoup: %s, using fallback", e
                 )
 
         # Fallback to simple parser
@@ -261,14 +261,14 @@ def parse_email(json_data: Dict[str, Any]) -> EmailInput:
         # Create and validate EmailInput
         email = EmailInput(**json_data)
 
-        logger.debug(f"Successfully parsed email: {email.subject}")
+        logger.debug("successfully parsed email: %s", email.subject)
         return email
 
     except ValidationError as e:
-        logger.error(f"Email validation failed: {e}")
+        logger.error("email validation failed: %s", e)
         raise
     except Exception as e:
-        logger.error(f"Error parsing email: {e}", exc_info=True)
+        logger.error("error parsing email: %s", e, exc_info=True)
         raise ValueError(f"Failed to parse email: {str(e)}") from e
 
 
@@ -283,11 +283,11 @@ def validate_email(email: EmailInput) -> bool:
     """
     # Check that email has required content
     if not email.subject or not email.subject.strip():
-        logger.warning("Email missing subject")
+        logger.warning("email missing subject")
         return False
 
     if not email.body or not email.body.strip():
-        logger.warning("Email missing body")
+        logger.warning("email missing body")
         return False
 
     # Validate that we have at least one recipient

@@ -36,7 +36,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("backend")
 
 # FLASK RUNTIME INIT
 # set the url to the frontend url provided by npm run dev
@@ -78,9 +78,9 @@ def _seed_login_users() -> None:
         try:
             response = account_manager_client.seed_user(username=username, password=password, role=role)
             if response.status_code >= 400:
-                logger.warning("Failed to seed login user %s via account manager", username)
+                logger.warning("failed to seed login user %s via account manager", username)
         except RequestException as exc:
-            logger.warning("Skipping login seed; account manager unavailable: %s", exc)
+            logger.warning("skipping login seed; account manager unavailable: %s", exc)
             break
 
 
@@ -111,7 +111,7 @@ def login():
     try:
         auth_response = account_manager_client.verify_user(username, password)
     except RequestException as exc:
-        logger.error("AccountManager auth verify failed: %s", exc)
+        logger.error("account manager auth verify failed: %s", exc)
         return jsonify({"error": "Authentication service unavailable"}), 503
 
     if auth_response.status_code == 401:
@@ -209,7 +209,7 @@ def enqueue_confirmation():
             if exists_response.status_code >= 400 or not exists_payload.get("exists"):
                 return jsonify({"error": f"User '{username}' does not exist"}), 404
         except RequestException as exc:
-            logger.error("AccountManager user existence check failed: %s", exc)
+            logger.error("account manager user existence check failed: %s", exc)
             return jsonify({"error": "Authentication service unavailable"}), 503
         except ValueError:
             return jsonify({"error": "Invalid response from authentication service"}), 502
@@ -233,7 +233,7 @@ def enqueue_confirmation():
             return jsonify({"error": "Failed to enqueue confirmation"}), 500
 
     except Exception as e:
-        logger.error("Error enqueueing confirmation: %s", e)
+        logger.error("error enqueueing confirmation: %s", e)
         return jsonify({"error": "Failed to enqueue confirmation"}), 500
 
 
@@ -353,7 +353,7 @@ def get_email_connectors():
         response = account_manager_client.list_accounts(current_user)
         accounts = response.json()
     except RequestException as exc:
-        logger.error("AccountManager list call failed: %s", exc)
+        logger.error("account manager list call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
@@ -382,11 +382,11 @@ def remove_email_connector(connector_id):
     try:
         response = account_manager_client.delete_account(current_user, connector_id)
     except RequestException as exc:
-        logger.error("AccountManager delete call failed: %s", exc)
+        logger.error("account manager delete call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
 
     if response.status_code == 204:
-        logger.info("Removed email connector id %s for user %s", connector_id, current_user)
+        logger.info("removed email connector id %s for user %s", connector_id, current_user)
         return jsonify({"message": "Email connector removed successfully"}), 200
     if response.status_code == 404:
         return jsonify({"error": "Connector not found or does not belong to user"}), 404
@@ -401,7 +401,7 @@ def get_connector_type_options():
         response = account_manager_client.list_provider_types()
         return jsonify(response.json()), response.status_code
     except RequestException as exc:
-        logger.error("AccountManager provider types call failed: %s", exc)
+        logger.error("account manager provider types call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
@@ -426,7 +426,7 @@ def get_connector_setup(connector_type):
         return jsonify(steps), 200
 
     except Exception as e:
-        logger.error("Error getting connector setup for %s: %s", connector_type, e)
+        logger.error("error getting connector setup for %s: %s", connector_type, e)
         return jsonify({"error": "Failed to get setup steps"}), 500
 
 
@@ -442,7 +442,7 @@ def get_email_connector_status(state_id: str):
         )
         return jsonify(response.json()), response.status_code
     except RequestException as exc:
-        logger.error("AccountManager status poll failed: %s", exc)
+        logger.error("account manager status poll failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
 
 @app.route("/api/email-step-callback/<provider>/<function_name>", methods=["POST"])
@@ -465,7 +465,7 @@ def run_email_step_callback(provider: str, function_name: str):
         )
         return jsonify(response.json()), response.status_code
     except RequestException as exc:
-        logger.error("AccountManager step callback call failed: %s", exc)
+        logger.error("account manager step callback call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
@@ -493,7 +493,7 @@ def provider_oauth_callback(provider: str):
         )
         result = response.json()
         if response.status_code >= 400:
-            logger.warning("Provider OAuth callback failed for %s: %s", provider, result)
+            logger.warning("provider oauth callback failed for %s: %s", provider, result)
             return _redirect_with_params(
                 {
                     "success": "0",
@@ -510,7 +510,7 @@ def provider_oauth_callback(provider: str):
             }
         )
     except Exception as e:
-        logger.error("Error in provider OAuth callback for %s: %s", provider, e)
+        logger.error("error in provider oauth callback for %s: %s", provider, e)
         return _redirect_with_params({"success": "0", "error": "Failed to complete authorization"})
 
 
@@ -546,7 +546,7 @@ def link_account():
         )
         return jsonify(response.json()), response.status_code
     except RequestException as exc:
-        logger.error("AccountManager link call failed: %s", exc)
+        logger.error("account manager link call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
@@ -561,7 +561,7 @@ def list_accounts():
         response = account_manager_client.list_accounts(current_user)
         return jsonify(response.json()), response.status_code
     except RequestException as exc:
-        logger.error("AccountManager list call failed: %s", exc)
+        logger.error("account manager list call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502
@@ -578,7 +578,7 @@ def delete_account(account_id: int):
             return jsonify(response.json()), response.status_code
         return "", response.status_code
     except RequestException as exc:
-        logger.error("AccountManager delete call failed: %s", exc)
+        logger.error("account manager delete call failed: %s", exc)
         return jsonify({"error": "Account manager service unavailable"}), 503
     except ValueError:
         return jsonify({"error": "Invalid response from account manager"}), 502

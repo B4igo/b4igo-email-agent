@@ -14,7 +14,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("account-manager")
 
 app = Flask(__name__)
 service = AccountManagerService()
@@ -223,11 +223,11 @@ def complete_provider_oauth(provider: str):
             client_secrets_file=client_secrets_file,
         )
         if error_msg:
-            logger.error("OAuth callback failed for %s: %s", provider, error_msg)
+            logger.error("oauth callback failed for %s: %s", provider, error_msg)
             return f"<h1>Error</h1><p>{error_msg}</p>", 400
             
     except Exception as exc:
-        logger.error("Failed to complete provider OAuth: %s", exc)
+        logger.error("failed to complete provider oauth: %s", exc)
         return "<h1>Server Error</h1><p>Failed to complete authorization</p>", 500
 
     return "<script>window.close()</script><h1>Success</h1><p>You can close this window.</p>", 200

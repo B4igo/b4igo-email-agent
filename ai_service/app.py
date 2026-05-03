@@ -48,7 +48,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ai-service")
 
 app = Flask(__name__)
 
@@ -84,10 +84,11 @@ def enqueue_confirmation(username: str, payload: str):
         timeout=30,
     )
     if resp.status_code == 201:
-        logger.info("Enqueued confirmation for %s", username)
+        logger.info("enqueued confirmation for user %s", username)
     else:
         logger.warning(
-            "Failed to enqueue confirmation: %s %s", resp.status_code, resp.text
+            "failed to enqueue confirmation: status %s body %s",
+            resp.status_code, resp.text,
         )
 
 

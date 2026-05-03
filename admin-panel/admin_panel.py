@@ -40,7 +40,10 @@ import docker_ops
 import e2e_runner
 from dataclasses import asdict
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger("admin-panel")
 
 app = FastAPI(title="B4iGO Admin Panel")
