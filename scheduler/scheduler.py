@@ -1,13 +1,23 @@
 from apscheduler.schedulers.background import BackgroundScheduler
-import os
-import redis
 import json
+import logging
+import os
+import sys
 import time
-import requests
-from flask import Flask, request, jsonify
 from io import BytesIO
 
-# Service endpoints — configurable via env so the same code runs locally and in compose.
+import redis
+import requests
+from flask import Flask, request, jsonify
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("scheduler")
+
+# Service endpoints, configurable via env so the same code runs locally and in compose.
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
 ACCOUNT_MANAGER_URL = os.environ.get("ACCOUNT_MANAGER_URL", "http://localhost:5100").rstrip("/")
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
@@ -54,7 +64,7 @@ def registerAccount():
 #Schedule Processing---------------------------
 def pollToQueue():
     try:
-        print("Starting poll")
+        logger.info("starting poll cycle")
 
         #pull registered accounts from redis
         accounts = queue.smembers(AccountQueue)
@@ -71,18 +81,21 @@ def pollToQueue():
                 timeout=10
             )
             if response.status_code != 200:
-                print(f"Poll failed for {user}")
+                logger.warning("pull failed for user %s: status %s", user, response.status_code)
                 continue
             try:
                 payload = response.json()
-            except Exception as e:
-                print ("Polling email error", e)
+            except Exception as exc:
+                logger.warning("pull response parse failed for user %s: %s", user, exc)
                 continue
             # /api/pull returns {"emails": [...], "errors": [...], "accountsPolled": N}
             emails = payload.get("emails", []) if isinstance(payload, dict) else []
             errors = payload.get("errors", []) if isinstance(payload, dict) else []
             for err in errors:
-                print(f"Pull error for {user} account {err.get('accountId')}: {err.get('error')}")
+                logger.warning(
+                    "provider pull error for user %s account %s: %s",
+                    user, err.get("accountId"), err.get("error"),
+                )
 
             for email in emails:
                 metadata = email.get("metadata") or {}
@@ -98,25 +111,28 @@ def pollToQueue():
                 }
                 queue.rpush(MainQueue,json.dumps(job))
 
-            print(f"{len(emails)} emails queued for {user}")
-    except Exception as e:
-        print("Polling error", e)
+            logger.info("queued %d email(s) for user %s", len(emails), user)
+    except Exception as exc:
+        logger.exception("poll cycle failed: %s", exc)
 
 def queueProcessing():
     job = None
     try:
         job = queue.lpop(MainQueue)
         if not job:
-            print("No jobs waiting.")
+            logger.debug("no jobs waiting")
             return
-        
+
         jobData = json.loads(job)
-        
-        print(f"Processing job for {jobData['user']}: ")
-        print(json.dumps(jobData, indent=2))
+
+        logger.info(
+            "processing job for user %s account %s subject=%r",
+            jobData["user"], jobData["accountId"],
+            jobData.get("email", {}).get("subject", ""),
+        )
 
         email = jobData.get("email", {})
-        text = f""" 
+        text = f"""
         From: {email.get('from','')}
         Subject: {email.get('subject','')}
 
@@ -148,30 +164,43 @@ def queueProcessing():
                 files=normalized_files,
                 timeout=300
                 )
-            
+
         if response.status_code in (200,201,202):
-            print(f"Ai processing successful user:{jobData['user']} Account:{jobData['accountId']}")
+            logger.info(
+                "ai handoff succeeded for user %s account %s",
+                jobData["user"], jobData["accountId"],
+            )
         else:
             jobData["retry"] += 1
             if jobData["retry"] >=3:
-                print("Sending to Dead queue")
+                logger.warning(
+                    "ai handoff exhausted retries for user %s account %s, sending to dead queue",
+                    jobData["user"], jobData["accountId"],
+                )
                 queue.rpush(DeadQueue, json.dumps(jobData))
             else:
-                print (f"Processing failed retrying job({jobData['retry']})")
+                logger.warning(
+                    "ai handoff failed status %s for user %s, retrying (%d/3)",
+                    response.status_code, jobData["user"], jobData["retry"],
+                )
                 queue.rpush(MainQueue, json.dumps(jobData))
 
-    except Exception as e:
-        print ("AI processing error", e) 
+    except Exception as exc:
+        logger.exception("queue processing failed: %s", exc)
         #if a job was dequeued put it back
         if job:
             queue.rpush(MainQueue, job)
-        
+
 #Setup Scheduler--------------------------
 scheduler = BackgroundScheduler()
 scheduler.add_job(queueProcessing, "interval", seconds=QUEUE_INTERVAL_SECONDS)
 scheduler.add_job(pollToQueue, "interval", seconds=POLL_INTERVAL_SECONDS)
 scheduler.start()
-print("Starting Scheduler...")
+logger.info(
+    "scheduler started: poll=%ss queue=%ss ai=%s account_manager=%s redis=%s:%d",
+    POLL_INTERVAL_SECONDS, QUEUE_INTERVAL_SECONDS,
+    AI_SERVICE_URL, ACCOUNT_MANAGER_URL, REDIS_HOST, REDIS_PORT,
+)
 
 #start Flask
 app.run(host="0.0.0.0", port=5200)
