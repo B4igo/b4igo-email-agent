@@ -6,7 +6,24 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Any, Optional
 
-VAULT_RECORD_TYPES = ("doctor", "insurance", "medication", "medical_history")
+VAULT_RECORD_TYPES = (
+    # health
+    "doctor",
+    "insurance",
+    "medication",
+    "medical_history",
+    # education
+    "education",
+    # legal
+    "attorney",
+    "contract",
+    "court_date",
+    "legal_notice",
+    # personal
+    "contact",
+    "personal_event",
+    "reminder",
+)
 
 
 class VaultStorage:

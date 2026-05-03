@@ -12,9 +12,10 @@ from shared.schemas import (
     schemas,
 )
 from shared.schemas.schema_prompter import SchemaPrompter
-from shared.schemas import legal_schemas, personal_schemas
+from shared.schemas import education_schemas, legal_schemas, personal_schemas
 
 _DOMAIN_MODULES = {
+    "education": education_schemas,
     "health": schemas,
     "legal": legal_schemas,
     "personal": personal_schemas,

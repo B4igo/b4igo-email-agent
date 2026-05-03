@@ -12,6 +12,9 @@ _CREATE_MUTATIONS: dict[str, str] = {
     "insurance": "createHealthInsurance",
     "medication": "createMedicationAndAllergy",
     "medical_history": "createMedicalHistories",
+    "education": "createEducation",
+    "contact": "createContact",
+    "attorney": "createContact",
 }
 
 _UPDATE_MUTATIONS: dict[str, str] = {
@@ -26,6 +29,9 @@ _DELETE_MUTATIONS: dict[str, str] = {
     "insurance": "deleteHealthInsurance",
     "medication": "deleteMedicationAllergies",
     "medical_history": "deleteMedicalHistory",
+    "education": "deleteEducationById",
+    "contact": "deleteContact",
+    "attorney": "deleteContact",
 }
 
 # Input type names for create mutations
@@ -34,6 +40,9 @@ _CREATE_INPUT_TYPES: dict[str, str] = {
     "insurance": "CreateHealthInsuranceInput",
     "medication": "createMedicationAndAllergyInput",
     "medical_history": "CreateMedicalHistoriesInput",
+    "education": "CreateEducationInput",
+    "contact": "CreateContactInput",
+    "attorney": "CreateContactInput",
 }
 
 # Input type names for update mutations
@@ -49,6 +58,9 @@ _READ_QUERIES: dict[str, str] = {
     "insurance": "getHealthInsurancesByUserId",
     "medication": "getMedicationsByUserId",
     "medical_history": "getAllMedicalHistory",
+    "education": "getEducationByUserId",
+    "contact": "getContactByUserId",
+    "attorney": "getContactByUserId",
 }
 
 # Response array field names per record type
