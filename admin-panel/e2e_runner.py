@@ -60,7 +60,7 @@ STAGES: list[Stage] = [
         key="scheduler_queued",
         label="Scheduler pulled and queued",
         container="b4igo-scheduler",
-        pattern=re.compile(r"[1-9]\d* emails queued for"),
+        pattern=re.compile(r"queued [1-9]\d* email\(s\) for"),
     ),
     Stage(
         key="ai_parsed",
