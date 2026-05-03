@@ -1,14 +1,52 @@
 """Provider abstraction for pulling emails from linked accounts."""
 
+import base64
 import email
 import imaplib
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
+from email.message import Message
 from email.utils import parsedate_to_datetime
 from typing import Any, Optional
 
 from .models import EmailSetupStep, LinkedAccount
 from .storage import AccountStorage
+
+
+def _extract_body_and_attachments(msg: Message) -> tuple[str, list[dict[str, Any]]]:
+    """Walk a parsed email and split it into a plain-text body plus attachments.
+
+    Body is the first non-attachment text/plain part encountered. Attachments
+    are any leaf part with Content-Disposition: attachment OR a non-text part
+    that carries a filename. Attachment bytes are base64-encoded so the
+    resulting dict survives JSON serialization (the scheduler queues these
+    through Redis and forwards them to the AI service as multipart files).
+    """
+    body = ""
+    attachments: list[dict[str, Any]] = []
+    for part in msg.walk():
+        if part.is_multipart():
+            continue
+        payload = part.get_payload(decode=True)
+        if not isinstance(payload, (bytes, bytearray)):
+            continue
+        disposition = str(part.get("Content-Disposition", "")).lower()
+        is_attachment = "attachment" in disposition
+        filename = part.get_filename()
+        content_type = part.get_content_type()
+
+        if is_attachment or (filename and not content_type.startswith("text/")):
+            attachments.append(
+                {
+                    "filename": filename or "attachment",
+                    "content_type": content_type,
+                    "content_b64": base64.b64encode(bytes(payload)).decode("ascii"),
+                }
+            )
+        elif content_type == "text/plain" and not body:
+            charset = part.get_content_charset() or "utf-8"
+            body = bytes(payload).decode(charset, errors="replace")
+    return body, attachments
 
 
 def _since_dt(last_read: datetime | None, fallback_days: int = 14) -> datetime:
@@ -119,25 +157,7 @@ class ImapProvider(EmailProvider):
                 except Exception:
                     received = None
 
-                body = ""
-                if msg.is_multipart():
-                    for part in msg.walk():
-                        if (
-                            part.get_content_type() == "text/plain"
-                            and "attachment"
-                            not in str(part.get("Content-Disposition", "")).lower()
-                        ):
-                            payload_bytes = part.get_payload(decode=True) or b""
-                            charset = part.get_content_charset() or "utf-8"
-                            if isinstance(payload_bytes, (bytes, bytearray)):
-                                body = payload_bytes.decode(charset, errors="replace")
-                            break
-                else:
-                    payload_bytes = msg.get_payload(decode=True) or b""
-                    if isinstance(payload_bytes, (bytes, bytearray)):
-                        body = payload_bytes.decode(
-                            msg.get_content_charset() or "utf-8", errors="replace"
-                        )
+                body, attachments = _extract_body_and_attachments(msg)
 
                 out.append(
                     {
@@ -149,6 +169,7 @@ class ImapProvider(EmailProvider):
                         "receivedAt": received
                         or datetime.now(timezone.utc).isoformat(),
                         "metadata": {"from": sender, "mailbox": mailbox},
+                        "attachments": attachments,
                     }
                 )
 

@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -143,15 +144,24 @@ def queueProcessing():
         )
         attachments = email.get("attachments") or []
 
+        # Each attachment is expected as {filename, content_type, content_b64}
+        # produced by the imap provider. Base64 is used so the dict survives
+        # JSON serialisation through Redis. Decode here back to raw bytes for
+        # the multipart upload to ai-service.
         normalized_files = []
         for i, att in enumerate(attachments):
-            if isinstance(att, dict):
-                filename = att.get("filename", f"attachment_{i}.txt")
-                content = att.get("content", "")
-            else:
-                filename = f"attachment_{i}.txt"
-                content = str(att)
-            normalized_files.append(("files", (filename, BytesIO(content.encode()))))
+            if not isinstance(att, dict):
+                continue
+            filename = att.get("filename") or f"attachment_{i}"
+            content_type = att.get("content_type") or "application/octet-stream"
+            try:
+                raw = base64.b64decode(att.get("content_b64", ""))
+            except (ValueError, TypeError):
+                logger.warning(
+                    "skipping attachment %s with invalid content_b64", filename
+                )
+                continue
+            normalized_files.append(("files", (filename, BytesIO(raw), content_type)))
 
         if not normalized_files:
             response = requests.post(
