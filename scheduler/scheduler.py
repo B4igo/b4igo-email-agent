@@ -1,21 +1,29 @@
 from apscheduler.schedulers.background import BackgroundScheduler
+import os
 import redis
 import json
 import time
-import requests  
+import requests
 from flask import Flask, request, jsonify
 from io import BytesIO
 
-# API Endpoints
-aiCallText = "http://localhost:5300/api/ai/text"
-aiCallAttachments = "http://localhost:5300/api/ai/text-with-attachments"
-accountEmailCall = "http://localhost:5100/api/pull"
+# Service endpoints — configurable via env so the same code runs locally and in compose.
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
+ACCOUNT_MANAGER_URL = os.environ.get("ACCOUNT_MANAGER_URL", "http://localhost:5100").rstrip("/")
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "30"))
+QUEUE_INTERVAL_SECONDS = int(os.environ.get("QUEUE_INTERVAL_SECONDS", "5"))
+
+aiCallText = f"{AI_SERVICE_URL}/api/ai/text"
+aiCallAttachments = f"{AI_SERVICE_URL}/api/ai/text-with-attachments"
+accountEmailCall = f"{ACCOUNT_MANAGER_URL}/api/pull"
 
 #Redis Connection Setup------------------------------
 queue = redis.Redis(
-    host="localhost",
-    port=6379, 
-    db=0, 
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=0,
     decode_responses=True)
 MainQueue = "mail_pull_queue"
 AccountQueue = "account_registry_queue"
@@ -66,20 +74,24 @@ def pollToQueue():
                 print(f"Poll failed for {user}")
                 continue
             try:
-                emails = response.json()
+                payload = response.json()
             except Exception as e:
                 print ("Polling email error", e)
                 continue
-            if not isinstance(emails, list):
-                continue
+            # /api/pull returns {"emails": [...], "errors": [...], "accountsPolled": N}
+            emails = payload.get("emails", []) if isinstance(payload, dict) else []
+            errors = payload.get("errors", []) if isinstance(payload, dict) else []
+            for err in errors:
+                print(f"Pull error for {user} account {err.get('accountId')}: {err.get('error')}")
 
             for email in emails:
-                job={"user":user, 
-                     "accountId": accountId, 
+                metadata = email.get("metadata") or {}
+                job={"user":user,
+                     "accountId": accountId,
                      "retry": 0,
                      "email":{
                          "subject": email.get("subject",""),
-                         "from": email.get("from",""),
+                         "from": metadata.get("from", ""),
                          "body": email.get("body",""),
                          "attachments": email.get("attachments", [])
                      }
@@ -126,13 +138,15 @@ def queueProcessing():
 
         if not normalized_files:
             response = requests.post(
-                aiCallText, json={"text":text}, timeout=10)
+                aiCallText,
+                json={"text": text, "username": jobData["user"]},
+                timeout=300)
         else:
             response = requests.post(
-                aiCallAttachments, 
-                data={"text":text},
-                files=normalized_files, 
-                timeout=10
+                aiCallAttachments,
+                data={"text": text, "username": jobData["user"]},
+                files=normalized_files,
+                timeout=300
                 )
             
         if response.status_code in (200,201,202):
@@ -154,8 +168,8 @@ def queueProcessing():
         
 #Setup Scheduler--------------------------
 scheduler = BackgroundScheduler()
-scheduler.add_job(queueProcessing, "interval", seconds=5,)
-scheduler.add_job(pollToQueue, "interval", seconds=40,)
+scheduler.add_job(queueProcessing, "interval", seconds=QUEUE_INTERVAL_SECONDS)
+scheduler.add_job(pollToQueue, "interval", seconds=POLL_INTERVAL_SECONDS)
 scheduler.start()
 print("Starting Scheduler...")
 
