@@ -161,6 +161,33 @@ def test_credentials():
     return jsonify(logged_in_as=current_user), 200
 
 
+# ADMIN (token-gated, demo only)
+@app.route("/api/confirmations/admin/clear", methods=["DELETE"])
+def admin_clear_confirmations():
+    """Bulk-clear confirmations. Demo-only, gated on B4IGO_ADMIN_TOKEN.
+
+    If the env var is unset, the route is disabled to avoid an unauthenticated
+    destructive endpoint in any deployed environment. Optional ?username=<name>
+    query param scopes the wipe to a single user.
+    """
+    expected = os.environ.get("B4IGO_ADMIN_TOKEN")
+    if not expected:
+        return jsonify({"error": "Admin endpoint disabled"}), 503
+
+    provided = request.headers.get("X-Admin-Token")
+    if provided != expected:
+        return jsonify({"error": "Forbidden"}), 403
+
+    username = request.args.get("username")
+    deleted = db.clear_confirmations(username)
+    logger.info(
+        "admin clear: removed %s confirmation(s)%s",
+        deleted,
+        f" for {username}" if username else "",
+    )
+    return jsonify({"deleted": deleted}), 200
+
+
 # CONFIRMATIONS MANAGEMENT (no auth - for testing integration)
 @app.route("/api/confirmations/enqueue", methods=["POST"])
 def enqueue_confirmation():
