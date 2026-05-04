@@ -95,7 +95,7 @@ def user_exists(username: str):
     if auth_error:
         return auth_error
 
-    return jsonify({"exists": service.user_exists(username)}), 200
+    return jsonify({"exists": service.storage.user_exists(username)}), 200
 
 
 @app.route("/api/accounts/link", methods=["POST"])
