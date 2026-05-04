@@ -110,7 +110,10 @@ services:
       - FLASK_ENV=development
       - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
       - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
-      - B4IGO_BACKEND_URL=http://backend:5000
+      - B4IGO_BACKEND_URL=http://localhost:5000
+      - B4IGO_AI_SERVICE_URL=http://ai-service:5300
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mailserver:
         condition: service_healthy
@@ -144,27 +147,23 @@ services:
   # ──────────────────────────────────────────────
   # AI Service (text/attachment → parsed entries)
   #
-  # Demo expedience: uses host networking so it can reach Ollama at
-  # 127.0.0.1:11434 (Ollama binds to localhost by default on the developer's
-  # machine). In production Ollama will run as its own container and ai-service
-  # can move back to the bridge network.
-  #
-  # Other containers reach this service via host.docker.internal:5300.
-  # BACKEND_URL must use localhost (not the docker hostname) because of the
-  # host networking — there is no DNS for `backend` in this namespace.
+  # Connects to Ollama using host gateway.
   # ──────────────────────────────────────────────
   ai-service:
     build:
       context: ..
       dockerfile: ai_service/Dockerfile
     container_name: ai-service
-    network_mode: host
+    ports:
+      - "5300:5300"
     environment:
-      - OLLAMA_HOST=http://localhost:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - AI_SERVICE_PORT=5300
-      - BACKEND_URL=http://localhost:5000
+      - BACKEND_URL=http://backend:5000
       - PARSER_MODEL=${PARSER_MODEL:-}
       - RERANKER_MODEL=${RERANKER_MODEL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
@@ -182,9 +181,6 @@ services:
 
   # ──────────────────────────────────────────────
   # Scheduler (polls account-manager for new mail, hands off to ai-service)
-  #
-  # Bridge-networked, but ai-service is host-networked — so we reach it via
-  # host.docker.internal:5300.
   # ──────────────────────────────────────────────
   scheduler:
     build:
@@ -198,7 +194,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
-      - B4IGO_AI_SERVICE_URL=http://host.docker.internal:5300
+      - B4IGO_AI_SERVICE_URL=http://ai-service:5300
       - POLL_INTERVAL_SECONDS=5
       - QUEUE_INTERVAL_SECONDS=5
     extra_hosts:
@@ -252,7 +248,7 @@ services:
       - B4IGO_ADMIN_PANEL_SECRET=${B4IGO_ADMIN_PANEL_SECRET:-}
       - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
       - B4IGO_BACKEND_URL=http://backend:5000
-      - B4IGO_AI_SERVICE_URL=http://host.docker.internal:5300
+      - B4IGO_AI_SERVICE_URL=http://ai-service:5300
       - MAIL_HOST=mailserver
       - MAIL_DOMAIN=test.local
       - MAIL_SMTP_PORT=25

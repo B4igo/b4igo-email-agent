@@ -473,7 +473,7 @@ def get_connector_setup(connector_type):
     """Get setup steps for a provider and normalize callback URLs for frontend."""
     current_user = flask.g.current_user
     try:
-        callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{connector_type}"
+        callback_url = f"{request.host_url.rstrip('/')}/api/email-connectors/oauth/callback/{connector_type}"
         response = account_manager_client.get_provider_setup(
             provider=connector_type,
             b4igo_user_id=current_user,
@@ -532,55 +532,36 @@ def run_email_step_callback(provider: str, function_name: str):
 
 @app.route("/api/email-connectors/oauth/callback/<provider>", methods=["GET"])
 def provider_oauth_callback(provider: str):
-    """Handle provider OAuth callback and redirect to generic frontend callback page."""
-    frontend_callback_url = f"{frontend_base_url}/email-connectors/callback"
-
-    def _redirect_with_params(params: dict[str, str]) -> Any:
-        return redirect(f"{frontend_callback_url}?{urlencode(params)}")
-
+    """Handle provider OAuth callback and close the window."""
     try:
         auth_code = request.args.get("code")
         state = request.args.get("state")
         if not auth_code or not state:
-            return _redirect_with_params(
-                {"success": "0", "error": "Missing OAuth code or state"}
-            )
+            return "Missing OAuth code or state", 400
 
-        callback_url = (
-            f"{backend_base_url}/api/email-connectors/oauth/callback/{provider}"
-        )
+        callback_url = f"{request.host_url.rstrip('/')}/api/email-connectors/oauth/callback/{provider}"
         response = account_manager_client.complete_provider_oauth(
             provider=provider,
             auth_code=auth_code,
             state=state,
             oauth_callback_url=callback_url,
         )
-        result = response.json()
         if response.status_code >= 400:
-            logger.warning(
-                "provider oauth callback failed for %s: %s", provider, result
-            )
-            return _redirect_with_params(
-                {
-                    "success": "0",
-                    "error": str(result.get("error", "OAuth callback failed")),
-                }
-            )
+            logger.warning("provider oauth callback failed for %s: %s", provider, response.text)
+            return f"OAuth callback failed: {response.text}", 400
 
-        connector_email = str(result.get("emailAddress", ""))
-        return _redirect_with_params(
-            {
-                "success": "1",
-                "email": connector_email,
-                "id": str(result.get("id", "")),
-            }
-        )
+        return """
+        <html>
+            <head><title>Authorization Complete</title></head>
+            <body>
+                <p>Authorization complete. You can close this window.</p>
+                <script>window.close();</script>
+            </body>
+        </html>
+        """
     except Exception as e:
         logger.error("error in provider oauth callback for %s: %s", provider, e)
-        return _redirect_with_params(
-            {"success": "0", "error": "Failed to complete authorization"}
-        )
-
+        return "Failed to complete authorization", 500
 
 @app.route("/api/accounts/link", methods=["POST"])
 @jwt_required()
