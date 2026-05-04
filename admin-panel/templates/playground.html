@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <h1>AI Playground</h1>
+  <p class="muted">Paste raw email text to see the AI pipeline's parsed output without enqueueing it. Hits <code>{{ ai_url }}</code> with <code>dry_run=true</code>.</p>
+</section>
+
+<section class="card wide">
+  <form hx-post="/playground/run" hx-target="#playground-out" hx-swap="innerHTML" hx-indicator="#playground-spinner">
+    <label>Email text
+      <textarea name="text" rows="14" placeholder="Paste an email here…" required></textarea>
+    </label>
+    <div class="row">
+      <button type="submit" class="btn primary">Run pipeline</button>
+      <span id="playground-spinner" class="htmx-indicator muted">running…</span>
+    </div>
+  </form>
+</section>
+
+<section class="card wide">
+  <h2>Output</h2>
+  <div id="playground-out"><p class="muted">No output yet.</p></div>
+</section>
+{% endblock %}

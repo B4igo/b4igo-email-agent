@@ -1,0 +1,8 @@
+{
+  "label": "Shipping notification (Amazon)",
+  "from_name": "Amazon.com",
+  "from_local": "shipment-tracking@amazon",
+  "subject": "Your Amazon order has shipped!",
+  "body": "Order #112-9374856-2938471\nCarrier: UPS\nTracking: 1Z999AA10123456784\nEstimated delivery: March 19-21, 2026\n",
+  "attachments": []
+}

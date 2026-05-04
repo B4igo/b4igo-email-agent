@@ -53,4 +53,4 @@ echo "Note: First run will pull Docker images which may take a few minutes."
 echo "      Ollama + qwen3:8b must be running on the host (verified above)."
 echo ""
 
-docker compose -f "$SCRIPT_DIR/compose.yaml" up "$@"
+docker compose -f "$SCRIPT_DIR/compose.yaml" up --build "$@"

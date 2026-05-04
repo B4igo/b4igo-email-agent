@@ -111,5 +111,24 @@ class Database:
             )
             return cursor.fetchone() is not None
 
+    def clear_confirmations(self, username: Optional[str] = None) -> int:
+        """Delete all confirmations, optionally scoped to a single user.
+
+        Args:
+            username: If provided, only that user's confirmations are removed.
+
+        Returns:
+            Number of rows deleted.
+        """
+        with self._get_connection() as conn:
+            if username is None:
+                cursor = conn.execute("DELETE FROM confirmations")
+            else:
+                cursor = conn.execute(
+                    "DELETE FROM confirmations WHERE username = ?", (username,)
+                )
+            return cursor.rowcount
+
+
 # Global database instance
 db = Database()

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <h1>{{ info.name }}</h1>
+  <p class="muted">
+    {{ info.image }} &middot; <span class="state {{ info.state }}">{{ info.state }}</span>
+    {% if info.health %} &middot; health: {{ info.health }}{% endif %}
+    &middot; restarts: {{ info.restart_count }}
+  </p>
+  <div class="lifecycle">
+    {% for action in ["start", "stop", "restart", "kill"] %}
+    <button class="btn"
+            hx-post="/containers/{{ info.name }}/lifecycle"
+            hx-vals='{"action": "{{ action }}"}'
+            hx-target="#lifecycle-flash"
+            hx-swap="innerHTML">{{ action }}</button>
+    {% endfor %}
+    <span id="lifecycle-flash" class="inline-flash"></span>
+  </div>
+</section>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Config</h2>
+    <table class="kv">
+      <tr><th>Image</th><td class="mono">{{ info.image }}</td></tr>
+      <tr><th>Started</th><td class="mono">{{ info.started_at }}</td></tr>
+      <tr><th>Networks</th><td class="mono">{{ info.networks|join(", ") }}</td></tr>
+      <tr><th>Ports</th><td class="mono">
+        {% for k, v in info.ports.items() %}{{ k }} → {{ v }}<br/>{% endfor %}
+      </td></tr>
+      <tr><th>Cmd</th><td class="mono">{{ info.cmd|join(" ") }}</td></tr>
+    </table>
+    <h3>Environment</h3>
+    <pre class="env mono">{% for e in info.env %}{{ e }}
+{% endfor %}</pre>
+  </section>
+
+  <section class="card">
+    <h2>Logs <small class="muted">(live tail)</small></h2>
+    <pre id="log-tail" class="log">{{ log_tail }}</pre>
+    <script>
+      (function() {
+        const pre = document.getElementById('log-tail');
+        const es = new EventSource("/containers/{{ info.name }}/logs/stream");
+        es.onmessage = (ev) => {
+          try {
+            const { line } = JSON.parse(ev.data);
+            pre.textContent += line + "\n";
+            pre.scrollTop = pre.scrollHeight;
+          } catch (e) {}
+        };
+        window.addEventListener("beforeunload", () => es.close());
+      })();
+    </script>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Terminal</h2>
+  <p class="muted">Runs <code>/bin/bash</code> (falls back to <code>/bin/sh</code>) inside <code>{{ info.name }}</code>.</p>
+  <button id="term-connect" class="btn primary">Open shell</button>
+  <div id="terminal" class="terminal-host" style="display:none"></div>
+  <script src="/static/xterm.js"></script>
+  <script src="/static/xterm-addon-fit.js"></script>
+  <script>
+    document.getElementById('term-connect').addEventListener('click', () => {
+      document.getElementById('term-connect').remove();
+      const host = document.getElementById('terminal');
+      host.style.display = 'block';
+      const term = new Terminal({ cursorBlink: true, fontSize: 13 });
+      const fit = new FitAddon.FitAddon();
+      term.loadAddon(fit);
+      term.open(host);
+      fit.fit();
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${proto}//${location.host}/containers/{{ info.name }}/exec`);
+      ws.binaryType = "arraybuffer";
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "resize", rows: term.rows, cols: term.cols }));
+      };
+      ws.onmessage = (ev) => {
+        if (ev.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(ev.data));
+        } else {
+          term.write(ev.data);
+        }
+      };
+      ws.onclose = () => term.write("\r\n\x1b[31m[connection closed]\x1b[0m\r\n");
+      term.onData((d) => ws.send(JSON.stringify({ type: "input", data: d })));
+      window.addEventListener("resize", () => {
+        fit.fit();
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: "resize", rows: term.rows, cols: term.cols }));
+        }
+      });
+    });
+  </script>
+</section>
+{% endblock %}

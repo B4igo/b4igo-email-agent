@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Login &middot; B4iGO Admin</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="login-page">
+  <form class="login-card" action="/login" method="post">
+    <h1>B4iGO Admin Panel</h1>
+    <p class="muted">Demo-only. Mounts the Docker socket — never expose this beyond localhost.</p>
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label>Password
+      <input type="password" name="password" autofocus required />
+    </label>
+    {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+    <button type="submit" class="btn primary">Sign in</button>
+  </form>
+</body>
+</html>

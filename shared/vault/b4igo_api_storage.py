@@ -801,7 +801,9 @@ query {query_name}($userId: String!) {{
         if not mutation:
             return None
 
-        variables = {"input": self._create_variables_for_type(record_type, username, payload)}
+        variables = {
+            "input": self._create_variables_for_type(record_type, username, payload)
+        }
         data = self._request(mutation, variables)
 
         mutation_name = _CREATE_MUTATIONS.get(record_type, "")
@@ -890,7 +892,9 @@ query {query_name}($userId: String!) {{
         if not mutation:
             return False
 
-        variables = {"input": self._update_variables_for_type(record_type, id, payload, username)}
+        variables = {
+            "input": self._update_variables_for_type(record_type, id, payload, username)
+        }
         data = self._request(mutation, variables)
 
         mutation_name = _UPDATE_MUTATIONS.get(record_type, "")

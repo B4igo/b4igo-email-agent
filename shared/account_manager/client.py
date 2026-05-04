@@ -116,6 +116,14 @@ class AccountManagerClient:
             timeout=self.timeout_seconds,
         )
 
+    def check_oauth_status(self, state_id: str) -> requests.Response:
+        """Poll the status of a Gmail OAuth linking session by state id."""
+        return requests.get(
+            f"{self.base_url}/api/providers/status/{state_id}",
+            headers=self._headers(),
+            timeout=self.timeout_seconds,
+        )
+
     def get_provider_setup(
         self,
         provider: str,

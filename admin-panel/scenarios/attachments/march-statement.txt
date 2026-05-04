@@ -1,0 +1,22 @@
+PACIFIC GAS & ELECTRIC
+Monthly Statement
+
+Account Number: ****6739
+Service Address: 123 Maple Avenue, San Francisco CA 94110
+Statement Period: February 26 to March 25, 2026
+
+Previous Balance:           $0.00
+Payments Received:          $0.00
+Current Charges:          $142.37
+-------------------------------------
+Total Amount Due:         $142.37
+
+Due Date: March 28, 2026
+
+Usage:
+  Electricity:  314 kWh
+  Tier 1 (0-300):    285 kWh @ $0.31/kWh = $88.35
+  Tier 2 (300+):      29 kWh @ $0.42/kWh = $12.18
+  Service charges:                          $41.84
+
+Pay online at https://pge.example.com/pay
