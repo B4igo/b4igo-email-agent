@@ -1,0 +1,8 @@
+{
+  "label": "Jury Duty Summons",
+  "from_name": "Alameda County Jury Services",
+  "from_local": "noreply@jury.alameda.courts.ca.gov",
+  "subject": "Official Jury Duty Summons",
+  "body": "Dear Jane M. Doe,\n\nYou have been randomly selected for jury service in the Superior Court of California, County of Alameda. Your official summons is attached as a PDF to this email.\n\nPlease open and read the attached document carefully. It contains your juror number, reporting date, time, courthouse address, case docket number, and instructions for confirming your appearance.\n\nYou are required to confirm your service no later than 11:59 PM on Friday, June 12, 2026. You may confirm online at www.alameda.courts.ca.gov/jury or by phone at (510) 891-6011. If you require a postponement or believe you qualify for a hardship excusal, instructions are included in the attached summons.\n\nThis is an official communication from the court. Failure to appear without an approved postponement or excusal may result in sanctions, including fines up to $1,500.\n\nDo not reply to this email address; it is not monitored. For questions, contact the Jury Commissioner's Office during business hours.\n\nOffice of the Jury Commissioner\nSuperior Court of California, County of Alameda\n1225 Fallon Street, Oakland, CA 94612",
+  "attachments":["attachments/jury_duty_summons.pdf"]
+}
