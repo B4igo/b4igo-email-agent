@@ -112,6 +112,8 @@ services:
       - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
       - B4IGO_BACKEND_URL=http://localhost:5000
       - B4IGO_AI_SERVICE_URL=http://ai-service:5300
+      - B4IGO_VAULT_BACKEND=api
+      - B4IGO_API_BASE_URL=https://gatewayservice-test-684919379591.us-central1.run.app/query/
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
