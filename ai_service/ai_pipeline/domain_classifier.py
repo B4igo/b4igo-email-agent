@@ -71,7 +71,7 @@ class DomainClassifier:
             ClassificationResult: Result with category, confidence, and all scores.
         """
         pairs = [(text, self._categories[category]) for category in self._category_list]
-        raw_scores = self.model.predict(pairs)
+        raw_scores = [float(self.model.predict([pair])[0]) for pair in pairs]
 
         # Normalise raw scores to [0, 1] via softmax so they sum to 1
         exp_scores = [float(__import__("math").exp(s)) for s in raw_scores]

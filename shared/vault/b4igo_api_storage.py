@@ -501,10 +501,7 @@ class B4igoVaultApiStorage:
         if record_type in _DIRECT_ARG_DELETE_TYPES:
             # deleteContact takes id: [Int!]! directly (not via DeleteRequest)
             return {"id": [record_id], "userId": username}
-        variables: dict[str, Any] = {"id": record_id, "userId": username}
-        if record_type == "medical_history":
-            variables["sectionId"] = 1
-        return variables
+        return {"id": record_id, "userId": username}
 
     # --- GraphQL mutation/query builders ---
 

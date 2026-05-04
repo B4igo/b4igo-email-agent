@@ -1,16 +1,23 @@
 """Defines DomainParser for AI pipeline."""
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
-from ollama import ChatResponse, chat
+import ollama
+from ollama import ChatResponse
 from pydantic import BaseModel, ValidationError
 
 from ai_service.ai_pipeline.domain_classifier import Domain
-from shared.schemas import legal_schemas, personal_schemas, schemas
+
+from shared.schemas import (
+    education_schemas,
+    legal_schemas,
+    personal_schemas,
+    schemas,
+)
 from shared.schemas.schema_prompter import SchemaPrompter
-from shared.schemas import education_schemas, legal_schemas, personal_schemas
 
 
 _DOMAIN_MODULES = {
@@ -29,6 +36,9 @@ class DomainParser:
     def __init__(self, model: Optional[str] = None) -> None:
         """Initializes DomainParser."""
         self._model = model if model else self.DEFAULT_MODEL
+        self._client = ollama.Client(
+            host=os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        )
         self.messages: list[dict[str, str]] = []
         self.schema_prompter: SchemaPrompter = SchemaPrompter()
 
@@ -99,7 +109,7 @@ class DomainParser:
             {"role": "user", "content": text},
         ]
 
-        response: ChatResponse = chat(
+        response: ChatResponse = self._client.chat(
             model=self._model, messages=messages, think=False, format="json"
         )
         response_content = response.message.content
