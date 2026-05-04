@@ -1,7 +1,8 @@
 ﻿export interface ConfirmationRaw {
     id: number,
-    jsonPayload: string,
-    edited: boolean
+    jsonPayload?: string,
+    json_payload?: string,
+    edited?: boolean
 }
 
 export interface Confirmation {

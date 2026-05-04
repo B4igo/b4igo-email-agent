@@ -5,10 +5,21 @@ import type {Confirmation, ConfirmationRaw} from "../Domain/Confirmation.ts";
 export const confirmations = {
     async getAll() {
         const { data } = await api.get<ConfirmationRaw[]>('/confirmations')
-        return data.map(conf => ({
-            ...conf,
-            jsonPayload: JSON.parse(conf.jsonPayload)
-        })) as Confirmation[];
+        return data.map((conf) => {
+            const rawPayload = conf.jsonPayload ?? conf.json_payload ?? "{}";
+            let parsed: Record<string, string> = {};
+            try {
+                parsed = typeof rawPayload === "string" ? JSON.parse(rawPayload) : (rawPayload as Record<string, string>);
+            } catch (error) {
+                console.error("Failed to parse confirmation payload", error);
+            }
+
+            return {
+                id: conf.id,
+                jsonPayload: parsed,
+                edited: conf.edited ?? false
+            } as Confirmation;
+        });
     },
 
     async reject(id: number) {
