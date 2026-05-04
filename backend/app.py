@@ -267,8 +267,9 @@ def reject_confirmation():
 
         return "", 200
 
-    except Exception:
-        return jsonify({"error": "Missing 'id' parameter"}), 400
+    except Exception as e:
+        logger.error("error rejecting confirmation: %s", e, exc_info=True)
+        return jsonify({"error": str(e) if str(e) else "Internal server error or invalid request"}), 400
 
 
 # handles both blanket accept and edits
@@ -296,7 +297,11 @@ def accept_confirmation():
             conf = next((c for c in confirmations_list if c["id"] == conf_id), None)
             if not conf:
                 return jsonify({"error": "Confirmation not found"}), 404
-            raw = conf["jsonPayload"]
+
+            # The database might return json_payload or jsonPayload depending on serialization
+            raw = conf.get("jsonPayload") or conf.get("json_payload")
+            if raw is None:
+                return jsonify({"error": "Invalid confirmation format in database"}), 500
 
         # Normalize to dict if string
         if isinstance(raw, str):
@@ -326,8 +331,9 @@ def accept_confirmation():
         db.remove_confirmation(conf_id)
         return "", 200
 
-    except Exception:
-        return jsonify({"error": "Missing 'id' parameter"}), 400
+    except Exception as e:
+        logger.error("error accepting confirmation: %s", e, exc_info=True)
+        return jsonify({"error": str(e) if str(e) else "Internal server error or invalid request"}), 400
 
 @app.route("/api/file/types", methods=["GET"])
 def get_file_types():
