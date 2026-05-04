@@ -124,6 +124,12 @@ export const auth = {
             await api.post('/auth/logout');
         } finally {
             localStorage.clear();
+
+            if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                await new Promise<void>((resolve) => {
+                    chrome.storage.local.remove(['allPrivateKeys'], () => resolve());
+                });
+            }
         }
     },
 };
