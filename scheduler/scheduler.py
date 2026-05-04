@@ -19,9 +19,9 @@ logging.basicConfig(
 logger = logging.getLogger("scheduler")
 
 # Service endpoints, configurable via env so the same code runs locally and in compose.
-AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
+AI_SERVICE_URL = os.environ.get("B4IGO_AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
 ACCOUNT_MANAGER_URL = os.environ.get(
-    "ACCOUNT_MANAGER_URL", "http://localhost:5100"
+    "B4IGO_ACCOUNT_MANAGER_URL", "http://localhost:5100"
 ).rstrip("/")
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))

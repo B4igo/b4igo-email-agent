@@ -107,8 +107,9 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=development
-      - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
       - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
+      - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - B4IGO_BACKEND_URL=http://backend:5000
     depends_on:
       mailserver:
         condition: service_healthy
@@ -125,19 +126,19 @@ services:
   # ──────────────────────────────────────────────
   # B4iGO Frontend (React/Vite dev server)
   # ──────────────────────────────────────────────
-  frontend:
-    build:
-      context: ..
-      dockerfile: frontend/Dockerfile
-    container_name: b4igo-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - SERVER_HTTP=http://backend:5000
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
+#  frontend:
+#    build:
+#      context: ..
+#      dockerfile: frontend/Dockerfile
+#    container_name: b4igo-frontend
+#    ports:
+#      - "5173:5173"
+#    environment:
+#      - SERVER_HTTP=http://backend:5000
+#    depends_on:
+#      backend:
+#        condition: service_healthy
+#    restart: unless-stopped
 
   # ──────────────────────────────────────────────
   # AI Service (text/attachment → parsed entries)
@@ -195,8 +196,8 @@ services:
       - PYTHONUNBUFFERED=1
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - ACCOUNT_MANAGER_URL=http://account-manager:5100
-      - AI_SERVICE_URL=http://host.docker.internal:5300
+      - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - B4IGO_AI_SERVICE_URL=http://host.docker.internal:5300
       - POLL_INTERVAL_SECONDS=5
       - QUEUE_INTERVAL_SECONDS=5
     extra_hosts:
