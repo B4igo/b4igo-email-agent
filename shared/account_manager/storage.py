@@ -4,8 +4,8 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
-from typing import Any, Optional
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 from .models import GmailOAuthSession, LinkedAccount, ProviderType
 
@@ -109,7 +109,8 @@ class AccountStorage:
                 )
 
             row = conn.execute(
-                "SELECT id, role, created_at, updated_at FROM users WHERE id = ?",
+                "SELECT id, role, created_at, updated_at"
+                " FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
 
@@ -183,6 +184,7 @@ class AccountStorage:
         )
 
     def get_gmail_oauth_session_status(self, state: str) -> str:
+        """Return the persisted status string for a Gmail OAuth session."""
         with self._get_connection() as conn:
             row = conn.execute(
                 "SELECT status FROM gmail_oauth_sessions WHERE state = ?",
@@ -193,6 +195,7 @@ class AccountStorage:
             return row["status"]
 
     def update_gmail_oauth_session_status(self, state: str, status: str) -> None:
+        """Update the persisted status for a Gmail OAuth session."""
         with self._get_connection() as conn:
             conn.execute(
                 "UPDATE gmail_oauth_sessions SET status = ? WHERE state = ?",
@@ -325,6 +328,7 @@ class AccountStorage:
             return cursor.rowcount > 0
 
     def update_last_read(self, account_id: int, last_read: datetime) -> None:
+        """Set the last-read timestamp for one linked account."""
         with self._get_connection() as conn:
             conn.execute(
                 """
@@ -334,6 +338,7 @@ class AccountStorage:
                 """,
                 (last_read.astimezone(timezone.utc).isoformat(), account_id),
             )
+
 
 def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
     """Convert sqlite row into LinkedAccount."""
@@ -350,6 +355,18 @@ def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
     except json.JSONDecodeError:
         config = {}
 
+    last_read_raw = row["last_read"]
+    last_read: datetime | None
+    if last_read_raw is None:
+        last_read = None
+    elif isinstance(last_read_raw, datetime):
+        last_read = last_read_raw
+    else:
+        try:
+            last_read = datetime.fromisoformat(str(last_read_raw))
+        except ValueError:
+            last_read = None
+
     return LinkedAccount(
         id=row["id"],
         b4igo_user_id=row["b4igo_user_id"],
@@ -358,7 +375,7 @@ def _row_to_linked_account(row: sqlite3.Row) -> LinkedAccount:
         display_name=row["display_name"],
         credentials=credentials,
         config=config,
-        last_read=row["last_read"],
+        last_read=last_read,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

@@ -1,12 +1,17 @@
 # B4iGO Email Agent - Full Demo Stack
 #
 # Combines:
-#   - smtp-imap-test mail server + seeded emails + webmail (bundled in demo/smtp-imap-test/)
+#   - smtp-imap-test mail server + webmail (bundled in demo/smtp-imap-test/)
 #   - Host Ollama (expects qwen3:8b to be available via `ollama pull qwen3:8b`)
-#   - b4igo backend (Flask API) — Dockerfile in backend/
-#   - b4igo frontend (React/Vite) — Dockerfile in frontend/
 #   - account manager (auth + linked accounts) — Dockerfile in account-manager/
-#   - mail ingest (IMAP → AI pipeline → backend) — Dockerfile in mail_ingest/
+#   - scheduler (polls account-manager, hands off to ai-service) — Dockerfile in scheduler/
+#   - ai-service (parses email content via Ollama) — Dockerfile in ai_service/
+#   - b4igo backend (Flask API + confirmation queue) — Dockerfile in backend/
+#   - b4igo frontend (React/Vite) — Dockerfile in frontend/
+#   - admin panel (operations UI) — Dockerfile in admin-panel/
+#   - bootstrap (one-shot: links the demo IMAP mailbox so polling kicks off)
+#
+# Mailboxes start empty. Use the admin panel at :5400 to send test emails.
 #
 # Usage:
 #   cd demo/
@@ -14,25 +19,12 @@
 #   ./setup.sh -d       # same but detached
 #
 # URLs:
-#   Frontend:  http://localhost:5173  (login: user / password)
-#   Webmail:   http://localhost:8888  (login: alice@test.local / password123)
-#   Backend:   http://localhost:5000/api/health
+#   Frontend:    http://localhost:5173  (login: user / password)
+#   Webmail:     http://localhost:8888  (login: alice@test.local / password123)
+#   Backend:     http://localhost:5000/api/health
+#   Admin panel: http://localhost:5400  (default password: admin; localhost-bound only)
 
 services:
-  #TODO temp solution to get everything working with localhost
-  net-hub:
-    image: alpine:latest
-    command: tail -f /dev/null
-    container_name: b4igo-net-hub
-    ports:
-      - "5000:5000"   # Backend
-      - "5100:5100"   # Account-Manager
-      - "5173:5173"   # Frontend
-      - "5200:5200"   # Scheduler
-      - "5300:5300"   # ai_service
-      - "6379:6379"   # Redis
-    restart: unless-stopped
-
   # ──────────────────────────────────────────────
   # Mail server (docker-mailserver)
   # ──────────────────────────────────────────────
@@ -68,21 +60,6 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
-  # Seed mailboxes with test emails
-  # ──────────────────────────────────────────────
-  seed:
-    build: ./smtp-imap-test/seed
-    container_name: mail-seed
-    depends_on:
-      mailserver:
-        condition: service_healthy
-    environment:
-      - MAIL_HOST=mailserver
-      - MAIL_DOMAIN=test.local
-      - SMTP_PORT=25
-      - IMAP_PORT=143
-
-  # ──────────────────────────────────────────────
   # Webmail UI (SnappyMail)
   # ──────────────────────────────────────────────
   webmail:
@@ -105,11 +82,10 @@ services:
       context: ..
       dockerfile: account-manager/Dockerfile
     container_name: b4igo-account-manager
-    #ports:
-    #  - "5100:5100"
+    ports:
+      - "5100:5100"
     environment:
       - B4IGO_ACCOUNT_MANAGER_PORT=5100
-      - B4IGO_ACCOUNT_MANAGER_PUBLIC_URL=http://localhost:5100
       - B4IGO_BACKEND_GRAPHQL_URL=https://gatewayservice-test-684919379591.us-central1.run.app/query/
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5100/api/health')\""]
@@ -117,69 +93,7 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
-    network_mode: "service:net-hub" #TODO
     restart: unless-stopped
-
-  # ──────────────────────────────────────────────
-  # Redis Queue (Required by Scheduler)
-  # ──────────────────────────────────────────────
-  redis:
-    image: redis:alpine
-    container_name: redis
-    #ports:
-    #  - "6379:6379"
-    restart: unless-stopped
-
-  # ──────────────────────────────────────────────
-  # Scheduler Service
-  # ──────────────────────────────────────────────
-  scheduler:
-    build:
-      context: ..
-      dockerfile: scheduler/Dockerfile
-    container_name: b4igo-scheduler
-    network_mode: "service:net-hub" #TODO
-    environment:
-      - B4IGO_AI_SERVICE_URL=http://localhost:5300
-      - B4IGO_ACCOUNT_MANAGER_URL=http://localhost:5100
-      - REDIS_HOST=localhost
-    #ports:
-    #  - "5200:5200"
-    healthcheck:
-      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5200/api/health')\"" ]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 5s
-    depends_on:
-      redis:
-        condition: service_started
-      account-manager:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # ──────────────────────────────────────────────
-  # AI Pipeline Service
-  # ──────────────────────────────────────────────
-  ai_service:
-    build:
-      context: ..
-      dockerfile: ai_service/Dockerfile
-    container_name: b4igo-ai_service
-    healthcheck:
-      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5300/api/health')\"" ]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 5s
-    #ports:
-    #  - "5300:5300"
-    environment:
-      - FLASK_RUN_HOST=0.0.0.0
-      - FLASK_RUN_PORT=5300
-      - B4IGO_BACKEND_URL=http://localhost:5000
-    restart: unless-stopped
-    network_mode: "service:net-hub" # TODO: temp to get it working for a demo, remove from all and change hardcoded urls
 
   # ──────────────────────────────────────────────
   # B4iGO Backend (Flask API)
@@ -189,28 +103,23 @@ services:
       context: ..
       dockerfile: backend/Dockerfile
     container_name: b4igo-backend
-    #ports:
-    #  - "5000:5000"
+    ports:
+      - "5000:5000"
     environment:
       - FLASK_ENV=development
-      - B4IGO_ACCOUNT_MANAGER_URL=http://localhost:5100
-      - B4IGO_AI_SERVICE_URL=http://localhost:5300
-      - B4IGO_FRONTEND_URL=http://localhost:5173
-      - B4IGO_BACKEND_URL=http://localhost:5000
+      - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
     depends_on:
       mailserver:
         condition: service_healthy
       account-manager:
         condition: service_healthy
-#      ai_service:
-#        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')\""]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 5s
-    network_mode: "service:net-hub" #TODO
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
@@ -221,42 +130,138 @@ services:
       context: ..
       dockerfile: frontend/Dockerfile
     container_name: b4igo-frontend
-    #ports:
-    #  - "5173:5173"
+    ports:
+      - "5173:5173"
     environment:
-      - VITE_BACKEND_URL=http://localhost:5000/api
+      - SERVER_HTTP=http://backend:5000
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
-    network_mode: "service:net-hub" #TODO
-
 
   # ──────────────────────────────────────────────
-  # Mail Ingest (IMAP → AI pipeline → Backend API)
+  # AI Service (text/attachment → parsed entries)
+  #
+  # Demo expedience: uses host networking so it can reach Ollama at
+  # 127.0.0.1:11434 (Ollama binds to localhost by default on the developer's
+  # machine). In production Ollama will run as its own container and ai-service
+  # can move back to the bridge network.
+  #
+  # Other containers reach this service via host.docker.internal:5300.
+  # BACKEND_URL must use localhost (not the docker hostname) because of the
+  # host networking — there is no DNS for `backend` in this namespace.
   # ──────────────────────────────────────────────
-  mail_ingest:
+  ai-service:
     build:
       context: ..
-      dockerfile: mail_ingest/Dockerfile
-    container_name: mail_ingest
-    # Host network so we can reach Ollama on localhost:11434
-    # (Ollama binds to 127.0.0.1 by default)
+      dockerfile: ai_service/Dockerfile
+    container_name: ai-service
     network_mode: host
     environment:
-      - IMAP_HOST=localhost
-      - IMAP_PORT=1143
-      - IMAP_USER=alice@test.local
-      - IMAP_PASS=password123
-      - B4IGO_BACKEND_URL=http://localhost:5000
-      - BACKEND_USER=user
       - OLLAMA_HOST=http://localhost:11434
-      - POLL_INTERVAL=0  # run once; set >0 to poll
+      - AI_SERVICE_PORT=5300
+      - BACKEND_URL=http://localhost:5000
+      - PARSER_MODEL=${PARSER_MODEL:-}
+      - RERANKER_MODEL=${RERANKER_MODEL:-}
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Redis (queues for the scheduler)
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: b4igo-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Scheduler (polls account-manager for new mail, hands off to ai-service)
+  #
+  # Bridge-networked, but ai-service is host-networked — so we reach it via
+  # host.docker.internal:5300.
+  # ──────────────────────────────────────────────
+  scheduler:
+    build:
+      context: ..
+      dockerfile: scheduler/Dockerfile
+    container_name: b4igo-scheduler
+    ports:
+      - "5200:5200"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - AI_SERVICE_URL=http://host.docker.internal:5300
+      - POLL_INTERVAL_SECONDS=5
+      - QUEUE_INTERVAL_SECONDS=5
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      seed:
-        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      account-manager:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Bootstrap (one-shot): link the demo IMAP mailbox and register it with the
+  # scheduler so polling kicks off. Stand-in for what a real user would do via
+  # the "Link account" frontend flow. Idempotent — safe to re-run.
+  # ──────────────────────────────────────────────
+  bootstrap:
+    build: ./bootstrap
+    container_name: b4igo-bootstrap
+    environment:
+      - ACCOUNT_MANAGER_URL=http://account-manager:5100
+      - SCHEDULER_URL=http://scheduler:5200
+      - DEMO_USER=user
+      - IMAP_EMAIL=alice@test.local
+      - IMAP_PASSWORD=password123
+      - IMAP_HOST=mailserver
+      - IMAP_PORT=143
+    depends_on:
+      account-manager:
+        condition: service_healthy
+      scheduler:
+        condition: service_started
+    restart: "no"
+
+  # ──────────────────────────────────────────────
+  # B4iGO Admin Panel (demo-only operations UI)
+  #
+  # Mounts the Docker socket so it can show logs, exec into containers,
+  # and start/stop services. Bound to 127.0.0.1 only so the socket isn't
+  # ever reachable beyond the host running the demo.
+  # ──────────────────────────────────────────────
+  admin-panel:
+    build:
+      context: ..
+      dockerfile: admin-panel/Dockerfile
+    container_name: b4igo-admin-panel
+    ports:
+      - "127.0.0.1:5400:5400"
+    environment:
+      - B4IGO_ADMIN_PANEL_PASSWORD=${B4IGO_ADMIN_PANEL_PASSWORD:-admin}
+      - B4IGO_ADMIN_PANEL_SECRET=${B4IGO_ADMIN_PANEL_SECRET:-}
+      - B4IGO_ADMIN_TOKEN=${B4IGO_ADMIN_TOKEN:-demo-admin-token}
+      - B4IGO_BACKEND_URL=http://backend:5000
+      - B4IGO_AI_SERVICE_URL=http://host.docker.internal:5300
+      - MAIL_HOST=mailserver
+      - MAIL_DOMAIN=test.local
+      - MAIL_SMTP_PORT=25
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
       backend:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   maildata:

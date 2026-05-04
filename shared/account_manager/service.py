@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-
 from .models import EmailSetupStep, ProviderType
 from .providers import EmailProvider, GmailProvider, ImapProvider
 from .storage import AccountStorage
@@ -129,7 +128,7 @@ class SIWEClient:
             "Accept": "application/json",
             "User-Agent": "B4iGO-AccountManager/1.0"
         }
-        
+
         try:
             response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
 
@@ -155,13 +154,14 @@ class SIWEClient:
         except Exception as e:
             return {"valid": False, "error": str(e)}
 
+
 class AccountManagerService:
     """Service that orchestrates account storage and provider pulls."""
 
     def __init__(
         self,
         storage: Optional[AccountStorage] = None,
-        providers: Optional[Dict[ProviderType, EmailProvider]] = None,
+        providers: Optional[dict[str, EmailProvider]] = None,
         siwe_client: Optional[SIWEClient] = None,
     ):
         """Initialize service dependencies.
@@ -172,7 +172,7 @@ class AccountManagerService:
             siwe_client: Client for SIWE functionality
         """
         self.storage = storage or AccountStorage()
-        self.providers = providers or {
+        self.providers: dict[str, EmailProvider] = providers or {
             "imap": ImapProvider(),
             "gmail": GmailProvider(),
         }
@@ -246,7 +246,8 @@ class AccountManagerService:
             provider: Provider name (e.g. 'gmail').
             b4igo_user_id: B4iGO user identifier.
             connector_name: Optional label for the account.
-            oauth_callback_url: Deprecated. Now unused. Setup will use default backend redirect.
+            oauth_callback_url: Deprecated and unused; the default backend
+                redirect is used instead.
             client_secrets_file: Path to client secrets.
 
         Returns:
@@ -268,7 +269,7 @@ class AccountManagerService:
             redirect_uri=redirect_uri,
             connector_name=connector_name,
         )
-        
+
         return [
             {
                 "title": s.title,
@@ -316,10 +317,11 @@ class AccountManagerService:
             )
 
         try:
-            message = provider_adapter.CallFunction(function_name, validated_steps, b4igo_user_id, self.storage)
+            message = provider_adapter.CallFunction(
+                function_name, validated_steps, b4igo_user_id, self.storage
+            )
         except Exception as e:
             return {"success": False, "message": f"Error: {str(e)}"}
-
 
         if message:
             return {"success": False, "message": message}
@@ -332,7 +334,7 @@ class AccountManagerService:
         client_secrets_file: str = "client_secrets.json",
     ) -> str:
         """Pass OAuth callback to the correct provider.
-        
+
         Args:
             provider: The provider name.
             request_args: HTTP query parameters from the redirect.
@@ -341,7 +343,7 @@ class AccountManagerService:
         adapter = self.providers.get(provider)
         if adapter is None:
             return "Unsupported provider"
-            
+
         # Build backend redirect URL automatically
         am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
         redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
@@ -350,7 +352,7 @@ class AccountManagerService:
         args = dict(request_args)
         args["client_secrets_file"] = client_secrets_file
         args["redirect_uri"] = redirect_uri
-        
+
         return adapter.HandleCallback(args, self.storage)
 
     def pull(self, b4igo_user_id: str, account_ids: List[int] = []) -> Dict[str, Any]:

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <h1>Demo Actions</h1>
+  <p class="muted">Manipulate pipeline state for live demos.</p>
+</section>
+
+<div class="two-col">
+
+  <section class="card">
+    <h2>Confirmation queue</h2>
+    <p class="muted">Calls the backend's admin clear endpoint.</p>
+    <form hx-post="/demo/clear-queue" hx-target="#flash-clear" hx-swap="innerHTML">
+      <label>Username (blank = all)
+        <input type="text" name="username" placeholder="user" />
+      </label>
+      <button class="btn warn" type="submit">Clear queue</button>
+    </form>
+    <div id="flash-clear"></div>
+  </section>
+
+  <section class="card">
+    <h2>One-click reset</h2>
+    <p class="muted">Stop ingest → clear queue → restart backend → restart ingest.</p>
+    <button class="btn warn"
+            hx-post="/demo/reset"
+            hx-target="#flash-reset"
+            hx-swap="innerHTML"
+            hx-confirm="Reset the pipeline? This clears the confirmation queue and restarts services.">Reset pipeline</button>
+    <div id="flash-reset"></div>
+  </section>
+
+  <section class="card">
+    <h2>Send scenario email</h2>
+    <form hx-post="/demo/send-scenario" hx-target="#flash-scenario" hx-swap="innerHTML">
+      <label>Scenario
+        <select name="scenario_key">
+          {% for s in scenarios %}<option value="{{ s.key }}">{{ s.label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Recipient
+        <select name="recipient">
+          {% for a in accounts %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="btn primary" type="submit">Send</button>
+    </form>
+    <div id="flash-scenario"></div>
+  </section>
+
+  <section class="card">
+    <h2>Send N emails</h2>
+    <form hx-post="/demo/send-bulk" hx-target="#flash-bulk" hx-swap="innerHTML">
+      <label>Count
+        <input type="number" name="count" min="1" max="100" value="5" />
+      </label>
+      <label>Recipient
+        <select name="recipient">
+          {% for a in accounts %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="btn primary" type="submit">Send batch</button>
+    </form>
+    <div id="flash-bulk"></div>
+  </section>
+
+  <section class="card wide">
+    <h2>Send custom email</h2>
+    <form hx-post="/demo/send-custom" hx-target="#flash-custom" hx-swap="innerHTML">
+      <div class="row">
+        <label>From
+          <input type="email" name="sender" value="custom@test.local" />
+        </label>
+        <label>To
+          <select name="recipient">
+            {% for a in accounts %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <label>Subject
+        <input type="text" name="subject" required />
+      </label>
+      <label>Body
+        <textarea name="body" rows="6" required></textarea>
+      </label>
+      <button class="btn primary" type="submit">Send</button>
+    </form>
+    <div id="flash-custom"></div>
+  </section>
+
+</div>
+{% endblock %}

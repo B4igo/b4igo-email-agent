@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>B4iGO Admin Panel</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/xterm.css" />
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">B4iGO &middot; Admin</div>
+    <nav>
+      <a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="/demo" class="{% if active == 'demo' %}active{% endif %}">Demo Actions</a>
+      <a href="/e2e" class="{% if active == 'e2e' %}active{% endif %}">E2E Test</a>
+      <a href="/trace" class="{% if active == 'trace' %}active{% endif %}">Pipeline Trace</a>
+      <a href="/playground" class="{% if active == 'playground' %}active{% endif %}">AI Playground</a>
+    </nav>
+    <form action="/logout" method="post" class="logout-form">
+      <button type="submit" class="btn-link">Logout</button>
+    </form>
+  </header>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

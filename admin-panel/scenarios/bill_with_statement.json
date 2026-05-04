@@ -1,0 +1,8 @@
+{
+  "label": "Utility bill with attached statement",
+  "from_name": "Pacific Gas & Electric",
+  "from_local": "billing@pge",
+  "subject": "Your March statement is ready",
+  "body": "Your monthly statement for account ending in 6739 is attached.\nAmount due: $142.37 by March 28, 2026.\n",
+  "attachments": ["attachments/march-statement.txt"]
+}
