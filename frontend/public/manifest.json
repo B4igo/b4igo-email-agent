@@ -5,6 +5,20 @@
   "action": {
     "default_popup": "index.html"
   },
-  "permissions": ["storage", "activeTab"]
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://www.stage.b4igo.com/*",
+    "http://localhost:5000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.stage.b4igo.com/*"],
+      "js": ["finder.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "collector.js"
+  }
 }
 

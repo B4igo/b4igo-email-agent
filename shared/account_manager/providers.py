@@ -85,7 +85,7 @@ class EmailProvider(ABC):
 
     def HandleCallback(
         self, request_args: dict[str, Any], storage: AccountStorage
-    ) -> str:
+    ) -> dict[str, Any]:
         """Handle OAuth callback or similar external provider redirect hooks.
 
         By default, does nothing and raises NotImplementedError.
@@ -389,9 +389,10 @@ class GmailProvider(EmailProvider):
         account_id = kwargs.get("account_id")
         storage: Optional[AccountStorage] = kwargs.get("storage")
         client_secrets_file = kwargs.get("client_secrets_file", "client_secrets.json")
-        redirect_uri = kwargs.get(
-            "redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback"
-        )
+        redirect_uri = kwargs.get("redirect_uri")
+        if not redirect_uri:
+            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
+            redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/gmail/oauth/callback"
         connector_name = kwargs.get("connector_name")
 
         if not account_id or not storage:
@@ -449,25 +450,26 @@ class GmailProvider(EmailProvider):
 
     def HandleCallback(
         self, request_args: dict[str, Any], storage: AccountStorage
-    ) -> str:
+    ) -> dict[str, Any]:
         """Handle OAuth callback from Google."""
         state = request_args.get("state")
         auth_code = request_args.get("code")
         client_secrets_file = request_args.get(
             "client_secrets_file", "client_secrets.json"
         )
-        redirect_uri = request_args.get(
-            "redirect_uri", "http://127.0.0.1:5100/api/providers/gmail/oauth/callback"
-        )
+        redirect_uri = request_args.get("redirect_uri")
+        if not redirect_uri:
+            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
+            redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/gmail/oauth/callback"
 
         if not state or not auth_code:
             if state:
                 storage.update_gmail_oauth_session_status(state, "error")
-            return "Missing state or code in callback"
+            return {"success": False, "error": "Missing state or code in callback"}
 
         session = storage.pop_gmail_oauth_session(state)
         if session is None:
-            return "OAuth session not found or timed out"
+            return {"success": False, "error": "OAuth session not found or timed out"}
 
         try:
             from google_auth_oauthlib.flow import Flow
@@ -523,7 +525,12 @@ class GmailProvider(EmailProvider):
                     connector_name=session.connector_name,
                     status="success",
                 )
-                return ""
+                return {
+                    "success": True,
+                    "accountId": account.id,
+                    "b4igoUserId": session.b4igo_user_id,
+                    "emailAddress": email_address,
+                }
             else:
                 storage.save_gmail_oauth_session(
                     state=state,
@@ -532,7 +539,7 @@ class GmailProvider(EmailProvider):
                     connector_name=session.connector_name,
                     status="error",
                 )
-                return "Failed to upsert Gmail account"
+                return {"success": False, "error": "Failed to upsert Gmail account"}
 
         except Exception as exc:
             storage.save_gmail_oauth_session(
@@ -542,4 +549,4 @@ class GmailProvider(EmailProvider):
                 connector_name=session.connector_name,
                 status="error",
             )
-            return f"OAuth exchange failed: {exc}"
+            return {"success": False, "error": f"OAuth exchange failed: {exc}"}

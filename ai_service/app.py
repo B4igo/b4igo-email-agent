@@ -78,7 +78,7 @@ def enqueue_confirmation(username: str, payload: str):
     """POST a confirmation to the backend API."""
     resp = requests.post(
         f"{BACKEND_URL}/api/confirmations/enqueue",
-        json={"username": username, "jsonPayload": payload},
+        json={"user_id": username, "jsonPayload": payload},
         timeout=30,
     )
     if resp.status_code == 201:

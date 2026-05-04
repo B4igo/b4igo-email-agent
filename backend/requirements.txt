@@ -1,9 +1,10 @@
 flask
-flask-jwt-extended
 flask-cors
 pydantic>=2.0
 pydantic[email]
 requests
+httpx
+PyJWT
 google-auth
 google-auth-oauthlib
 google-auth-httplib2

@@ -26,53 +26,76 @@ def health_check():
     return jsonify({"status": "healthy", "service": "account_manager"}), 200
 
 
-@app.route("/api/auth/seed-user", methods=["POST"])
-def seed_user():
-    """Create or update one user for app-level authentication."""
+@app.route("/api/auth/init", methods=["POST"])
+def auth_init():
+    """Initialize SIWE flow."""
+    logger.info("AccountManager: Received /api/auth/init")
     auth_error = _validate_internal_auth()
     if auth_error:
+        logger.warning("AccountManager: Internal auth failed for /api/auth/init")
         return auth_error
 
-    payload: dict[str, Any] = request.get_json(silent=True) or {}
-    username = payload.get("username")
-    password = payload.get("password")
-    role = payload.get("role", "user")
-    if not username or not password:
-        return jsonify({"error": "Missing required fields: username, password"}), 400
+    payload = request.get_json(silent=True) or {}
+    address = payload.get("address")
+    if not address:
+        return jsonify({"error": "Missing required field: address"}), 400
 
-    user = service.seed_user(
-        username=str(username), password=str(password), role=str(role)
-    )
-    return jsonify(user), 201
+    try:
+        result = service.init_siwe(address)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/auth/verify", methods=["POST"])
-def verify_user_auth():
-    """Validate username/password and return user profile."""
+def auth_verify():
+    """Verify SIWE signature."""
     auth_error = _validate_internal_auth()
     if auth_error:
         return auth_error
 
-    payload: dict[str, Any] = request.get_json(silent=True) or {}
-    username = payload.get("username")
-    password = payload.get("password")
-    if not username or not password:
-        return jsonify({"error": "Missing required fields: username, password"}), 400
+    payload = request.get_json(silent=True) or {}
+    signature = payload.get("signature")
+    request_id = payload.get("requestId")
+    if not signature or not request_id:
+        return jsonify({"error": "Missing required fields: signature, requestId"}), 400
 
-    user = service.authenticate_user(str(username), str(password))
-    if user is None:
-        return jsonify({"error": "Invalid username or password"}), 401
-    return jsonify(user), 200
+    try:
+        result = service.verify_siwe(signature, request_id)
+        if not result:
+            return jsonify({"error": "Invalid signature or request"}), 401
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/auth/validate", methods=["GET"])
+def auth_validate():
+    """Validate JWT token"""
+    auth_error = _validate_internal_auth()
+    if auth_error:
+        return auth_error
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return jsonify({"error": "Missing Authorization header"}), 401
+
+    try:
+        result = service.validate_token(auth_header)
+        status_code = 200 if result.get("valid") else 401
+        return jsonify(result), status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/auth/users/<username>/exists", methods=["GET"])
 def user_exists(username: str):
-    """Check whether username exists in account-manager auth storage."""
+    """Check whether user_id exists in account-manager auth storage."""
     auth_error = _validate_internal_auth()
     if auth_error:
         return auth_error
 
-    return jsonify({"exists": service.user_exists(username)}), 200
+    return jsonify({"exists": service.storage.user_exists(username)}), 200
 
 
 @app.route("/api/accounts/link", methods=["POST"])
@@ -148,8 +171,6 @@ def list_provider_types():
 @app.route("/api/providers/status/<state_id>", methods=["GET"])
 def check_oauth_status(state_id: str):
     """Check the status of an OAuth linking session."""
-    # The frontend calls backend/app.py which proxies here, so we still require
-    # the internal token to keep the endpoint gated end-to-end.
     auth_error = _validate_internal_auth()
     if auth_error:
         return auth_error
@@ -167,7 +188,6 @@ def get_provider_setup(provider: str):
 
     payload: dict[str, Any] = request.get_json(silent=True) or {}
     b4igo_user_id = payload.get("b4igoUserId")
-    # oauthCallbackUrl is no longer explicitly required, but we'll accept it if present.
     callback_url = payload.get("oauthCallbackUrl")
     connector_name = payload.get("connectorName")
     if not b4igo_user_id:
@@ -212,30 +232,46 @@ def run_provider_step_callback(provider: str, function_name: str):
     return jsonify(result), status
 
 
-@app.route("/api/providers/<provider>/oauth/callback", methods=["GET"])
+@app.route("/api/providers/<provider>/oauth/callback", methods=["GET", "POST"])
 def complete_provider_oauth(provider: str):
     """Complete provider OAuth callback and upsert linked account."""
-    # No internal auth here: Google redirects the user's browser to this URL,
-    # so the request does not carry our service token.
 
-    # query parameters from GET
-    request_args = request.args.to_dict()
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        request_args = {
+            "code": payload.get("code"),
+            "state": payload.get("state")
+        }
+        redirect_uri = payload.get("oauthCallbackUrl")
+    else:
+        request_args = request.args.to_dict()
+        redirect_uri = None
+
     client_secrets_file = os.environ.get(
         "B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json"
     )
 
     try:
-        error_msg = service.handle_oauth_callback(
+        result = service.handle_oauth_callback(
             provider=provider,
             request_args=request_args,
             client_secrets_file=client_secrets_file,
+            redirect_uri=redirect_uri,
         )
-        if error_msg:
+        if not result.get("success"):
+            error_msg = result.get("error", "Unknown error")
             logger.error("oauth callback failed for %s: %s", provider, error_msg)
+            if request.method == "POST":
+                return jsonify({"error": error_msg}), 400
             return f"<h1>Error</h1><p>{error_msg}</p>", 400
+
+        if request.method == "POST":
+            return jsonify(result), 200
 
     except Exception as exc:
         logger.error("failed to complete provider oauth: %s", exc)
+        if request.method == "POST":
+            return jsonify({"error": str(exc)}), 500
         return "<h1>Server Error</h1><p>Failed to complete authorization</p>", 500
 
     return (

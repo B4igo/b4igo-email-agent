@@ -1,4 +1,6 @@
 flask
+httpx
+PyJWT
 pydantic>=2.0
 pydantic[email]
 requests
