@@ -232,27 +232,46 @@ def run_provider_step_callback(provider: str, function_name: str):
     return jsonify(result), status
 
 
-@app.route("/api/providers/<provider>/oauth/callback", methods=["GET"])
+@app.route("/api/providers/<provider>/oauth/callback", methods=["GET", "POST"])
 def complete_provider_oauth(provider: str):
     """Complete provider OAuth callback and upsert linked account."""
 
-    request_args = request.args.to_dict()
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        request_args = {
+            "code": payload.get("code"),
+            "state": payload.get("state")
+        }
+        redirect_uri = payload.get("oauthCallbackUrl")
+    else:
+        request_args = request.args.to_dict()
+        redirect_uri = None
+
     client_secrets_file = os.environ.get(
         "B4IGO_GOOGLE_CLIENT_SECRETS", "client_secrets.json"
     )
 
     try:
-        error_msg = service.handle_oauth_callback(
+        result = service.handle_oauth_callback(
             provider=provider,
             request_args=request_args,
             client_secrets_file=client_secrets_file,
+            redirect_uri=redirect_uri,
         )
-        if error_msg:
+        if not result.get("success"):
+            error_msg = result.get("error", "Unknown error")
             logger.error("oauth callback failed for %s: %s", provider, error_msg)
+            if request.method == "POST":
+                return jsonify({"error": error_msg}), 400
             return f"<h1>Error</h1><p>{error_msg}</p>", 400
+
+        if request.method == "POST":
+            return jsonify(result), 200
 
     except Exception as exc:
         logger.error("failed to complete provider oauth: %s", exc)
+        if request.method == "POST":
+            return jsonify({"error": str(exc)}), 500
         return "<h1>Server Error</h1><p>Failed to complete authorization</p>", 500
 
     return (

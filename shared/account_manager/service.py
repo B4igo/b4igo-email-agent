@@ -197,6 +197,24 @@ class AccountManagerService:
             self.storage.upsert_user(user_id=result.get("userId"), role="user")
         return result
 
+    def _notify_scheduler(self, b4igo_user_id: str, account_id: int):
+        """Notify scheduler to register one account for polling."""
+        scheduler_url = os.environ.get("B4IGO_SCHEDULER_URL")
+        if not scheduler_url:
+            logger.warning("B4IGO_SCHEDULER_URL not set; skipping scheduler notification")
+            return
+
+        url = f"{scheduler_url.rstrip('/')}/api/scheduler/registry"
+        try:
+            httpx.post(
+                url,
+                json={"b4igoUserId": b4igo_user_id, "accountId": account_id},
+                timeout=5
+            )
+            logger.info("Notified scheduler for account %d", account_id)
+        except Exception as e:
+            logger.error("Failed to notify scheduler for account %d: %s", account_id, e)
+
     def link_account(
         self,
         b4igo_user_id: str,
@@ -217,6 +235,10 @@ class AccountManagerService:
         )
         if account is None:
             return None
+        
+        # Notify scheduler
+        self._notify_scheduler(b4igo_user_id, account.id)
+        
         return account.to_public_dict()
 
     def list_accounts(self, b4igo_user_id: str) -> List[Dict[str, Any]]:
@@ -246,8 +268,7 @@ class AccountManagerService:
             provider: Provider name (e.g. 'gmail').
             b4igo_user_id: B4iGO user identifier.
             connector_name: Optional label for the account.
-            oauth_callback_url: Deprecated and unused; the default backend
-                redirect is used instead.
+            oauth_callback_url: Optional override for the OAuth redirect URI.
             client_secrets_file: Path to client secrets.
 
         Returns:
@@ -257,16 +278,16 @@ class AccountManagerService:
         if adapter is None:
             return None
 
-        # Build backend redirect URL automatically
-        # Fallback to localhost if not configured, though standard is 127.0.0.1:5100
-        am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
-        redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
+        # Build default redirect URL if none provided
+        if not oauth_callback_url:
+            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
+            oauth_callback_url = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
 
         steps = adapter.GetSetup(
             account_id=b4igo_user_id,
             storage=self.storage,
             client_secrets_file=client_secrets_file,
-            redirect_uri=redirect_uri,
+            redirect_uri=oauth_callback_url,
             connector_name=connector_name,
         )
 
@@ -332,28 +353,45 @@ class AccountManagerService:
         provider: str,
         request_args: Dict[str, Any],
         client_secrets_file: str = "client_secrets.json",
-    ) -> str:
+        redirect_uri: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Pass OAuth callback to the correct provider.
 
         Args:
             provider: The provider name.
             request_args: HTTP query parameters from the redirect.
             client_secrets_file: Path to client_secrets.json.
+            redirect_uri: The original redirect URI used for the flow.
         """
         adapter = self.providers.get(provider)
         if adapter is None:
-            return "Unsupported provider"
+            return {"success": False, "error": "Unsupported provider"}
 
-        # Build backend redirect URL automatically
-        am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
-        redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
+        # Build default redirect URL if none provided
+        if not redirect_uri:
+            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
+            redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
 
         # inject config for provider
         args = dict(request_args)
         args["client_secrets_file"] = client_secrets_file
         args["redirect_uri"] = redirect_uri
 
-        return adapter.HandleCallback(args, self.storage)
+        result = adapter.HandleCallback(args, self.storage)
+        
+        if isinstance(result, dict) and result.get("success"):
+            account_id = result.get("accountId")
+            b4igo_user_id = result.get("b4igoUserId")
+            if account_id and b4igo_user_id:
+                self._notify_scheduler(b4igo_user_id, account_id)
+            return result
+        
+        if isinstance(result, str):
+            if not result: # Success
+                 return {"success": True}
+            return {"success": False, "error": result}
+            
+        return result
 
     def pull(self, b4igo_user_id: str, account_ids: List[int] = []) -> Dict[str, Any]:
         """Pull new emails for valid linked accounts.

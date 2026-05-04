@@ -125,6 +125,7 @@ class AccountManagerClient:
         provider: str,
         b4igo_user_id: str,
         connector_name: Optional[str] = None,
+        oauth_callback_url: Optional[str] = None,
     ) -> requests.Response:
         """Fetch setup steps required to link a new provider account.
 
@@ -132,6 +133,7 @@ class AccountManagerClient:
             provider: Target provider (e.g. 'gmail').
             b4igo_user_id: B4iGO user identifier.
             connector_name: Optional explicit display name for account.
+            oauth_callback_url: Optional override for the OAuth redirect URI.
 
         Returns:
             List of setup step definitions or validation error.
@@ -139,6 +141,7 @@ class AccountManagerClient:
         payload = {
             "b4igoUserId": b4igo_user_id,
             "connectorName": connector_name,
+            "oauthCallbackUrl": oauth_callback_url,
         }
         return requests.post(
             f"{self.base_url}/api/providers/{provider}/setup",

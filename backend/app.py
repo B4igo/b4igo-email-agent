@@ -473,10 +473,12 @@ def get_connector_setup(connector_type):
     """Get setup steps for a provider and normalize callback URLs for frontend."""
     current_user = flask.g.current_user
     try:
+        callback_url = f"{backend_base_url}/api/email-connectors/oauth/callback/{connector_type}"
         response = account_manager_client.get_provider_setup(
             provider=connector_type,
             b4igo_user_id=current_user,
             connector_name=request.args.get("name"),
+            oauth_callback_url=callback_url,
         )
         if response.status_code >= 400:
             return jsonify(response.json()), response.status_code

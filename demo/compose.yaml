@@ -87,6 +87,7 @@ services:
     environment:
       - B4IGO_ACCOUNT_MANAGER_PORT=5100
       - B4IGO_BACKEND_GRAPHQL_URL=https://gatewayservice-test-684919379591.us-central1.run.app/query/
+      - B4IGO_SCHEDULER_URL=http://scheduler:5200
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5100/api/health')\""]
       interval: 5s
