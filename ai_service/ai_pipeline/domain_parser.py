@@ -8,11 +8,11 @@ from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
 from ai_service.ai_pipeline.domain_classifier import Domain
-from shared.schemas import legal_schemas, personal_schemas, schemas
+from shared.schemas import health_schemas, legal_schemas, personal_schemas
 from shared.schemas.schema_prompter import SchemaPrompter
 
 _DOMAIN_MODULES = {
-    "health": schemas,
+    "health": health_schemas,
     "legal": legal_schemas,
     "personal": personal_schemas,
 }
@@ -21,7 +21,7 @@ _DOMAIN_MODULES = {
 class DomainParser:
     """Parses a document for all information within a given domain."""
 
-    DEFAULT_MODEL = "qwen3:8b"
+    DEFAULT_MODEL = "qwen3.5:9b"
 
     def __init__(self, model: Optional[str] = None) -> None:
         """Initializes DomainParser."""
@@ -43,19 +43,20 @@ class DomainParser:
     def _validate_response(
         self, response_content: Optional[str], domain: Domain
     ) -> list[BaseModel]:
-        """Validates the response content and converts it to BaseModels."""
+        """Validates the response content and converts it to
+        BaseModels."""
         if not response_content:
-            raise ValueError("No response content to parse.")
+            return []
         json_object = None
         try:
             json_object = json.loads(response_content)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON response: {e}")
+            return []
         if "results" not in json_object:
-            raise ValueError("JSON response does not contain 'results' key.")
+            return []
         results = json_object["results"]
         if not isinstance(results, list):
-            raise ValueError("'results' key must be a list.")
+            return []
 
         module = _DOMAIN_MODULES.get(domain)
         parsed_results: list[BaseModel] = []

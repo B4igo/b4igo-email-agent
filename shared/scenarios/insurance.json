@@ -1,0 +1,23 @@
+{
+  "label": "Health insurance enrollment confirmation",
+  "from_name": "Blue Shield of California",
+  "from_local": "member.services@blueshieldca",
+  "subject": "Your Blue Shield Enrollment is Confirmed – Plan Details Inside",
+  "body": "Dear Jane Doe,\n\nYour enrollment in the Blue Shield of California BluePPO 80 plan is now confirmed. Please review your coverage details below.\n\nPlan Type: PPO (BluePPO 80)\nCoverage: Family\nMember ID: BSC9182731\nGroup Number: 77234\nPrimary Insured: Jane Doe\nEffective Date: April 1, 2026\n\nYour physical insurance cards will be mailed to your address on file within 7–10 business days. In the meantime, you may access your digital ID card and full benefit details through the Blue Shield member portal at member.blueshieldca.com.\n\nWith your PPO plan, you have the flexibility to see any licensed provider in or out of network, though in-network care will cost less. Your family deductible is $1,500 and your out-of-pocket maximum is $5,000 per year.\n\nFor questions about your coverage, please call member services at 1-888-256-3650, Monday through Friday, 8 AM to 6 PM.\n\nWarm regards,\nBlue Shield of California Member Services",
+  "attachments": [],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "Insurance",
+        "required": {
+          "type_of_health_insurance": "PPO",
+          "coverage_type": "Family"
+        },
+        "optional": {
+          "last_updated": "2026"
+        }
+      }
+    ]
+  }
+}

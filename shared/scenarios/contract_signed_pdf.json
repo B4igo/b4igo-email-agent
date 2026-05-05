@@ -1,0 +1,24 @@
+{
+  "label": "Signed residential lease agreement (PDF)",
+  "from_name": "Oak Street Properties LLC",
+  "from_local": "leasing@oakstreetproperties",
+  "subject": "Your Signed Lease Agreement – Unit 4B, 1720 Oak Street",
+  "body": "Hi Robert,\n\nThank you for choosing Oak Street Properties as your new home. Attached to this email you'll find a fully countersigned copy of your lease agreement for our records and yours. Please save it somewhere safe — you may be asked for it when setting up utilities or applying for renter's insurance.\n\nA few quick reminders as you get ready to move in:\n\n  • Keys can be picked up from the leasing office anytime after 10:00 AM on your move-in date. Please bring a government-issued photo ID.\n  • Renter's insurance is required under the terms of your lease. Please email us a copy of your policy declarations page before move-in.\n  • Rent payments can be set up through our online tenant portal. You'll receive a separate email with login instructions within the next 48 hours.\n  • If you have any maintenance issues during your first 30 days, please don't hesitate to reach out. We want to make sure everything is in great shape.\n\nIf you have any questions about the attached agreement, the move-in process, or the property itself, just reply to this email and someone from our leasing team will get back to you within one business day.\n\nWelcome to the neighborhood!\n\nBest regards,\nThe Leasing Team\nOak Street Properties LLC\nleasing@oakstreetproperties.com",
+  "attachments": ["attachments/residential_lease_oak_street.pdf"],
+  "expected": {
+    "domain": "legal",
+    "schemas": [
+      {
+        "type": "Contract",
+        "required": {
+          "title": "Lease Agreement"
+        },
+        "optional": {
+          "effective_date": "2026-06-01",
+          "expiry_date": "2027-05-31",
+          "description": "residential"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "label": "Prescription ready for pickup – Metformin",
+  "from_name": "Walgreens Pharmacy",
+  "from_local": "pharmacy@walgreens",
+  "subject": "Your prescription is ready for pickup",
+  "body": "Hi Jane,\n\nGreat news — your prescription is ready for pickup at Walgreens Pharmacy!\n\nMedication: Metformin 500mg (Tablet)\nPrescribing Doctor: Dr. Elena Vargas, MD\nPrescribed for: Management of Type 2 Diabetes\nDirections: Take one tablet twice daily with meals for blood glucose management\nSupply: 90-day supply (180 tablets)\nRefills Remaining: 3\nPrescription Date: March 20, 2026\n\nYou can pick up your prescription at 1401 Webster Street, Oakland, CA 94612 during regular pharmacy hours (Monday–Friday 8 AM – 9 PM, Saturday–Sunday 9 AM – 6 PM), or request delivery through the Walgreens app.\n\nIf you have any questions about this medication, including side effects, interactions, or dosing instructions, please speak with your pharmacist at the counter — they're available to help at no charge.\n\nWalgreens Pharmacy Team\n(510) 555-0877",
+  "attachments": [],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "Medication",
+        "required": {
+          "name_of_medicine": "Metformin"
+        },
+        "optional": {
+          "purpose": "diabetes",
+          "duration": "90",
+          "date": "2026-03-20",
+          "treatment_name": "Type 2 Diabetes"
+        }
+      }
+    ]
+  }
+}

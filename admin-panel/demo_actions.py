@@ -36,7 +36,7 @@ SEED_ACCOUNTS = [
     "eve@test.local",
 ]
 
-SCENARIOS_DIR = Path(__file__).parent / "scenarios"
+SCENARIOS_DIR = Path(__file__).parent.parent / "shared" / "scenarios"
 
 
 @dataclass

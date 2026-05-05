@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 # Vault-type schemas kept for future use (e.g. per-vault validation of data).
 class Appointment(BaseModel):
-    """Extracted appointment information for agent output."""
+    """A medical-related appointment."""
 
     date: str  # ISO format string
     time: Optional[str] = None
@@ -50,7 +50,7 @@ class Insurance(BaseModel):
 
 
 class Medication(BaseModel):
-    """Treatments and Medications table."""
+    """Record of a medication and/or treatment."""
 
     name_of_medicine: str = Field(description="Name of the medication")
     treatment_name: Optional[str] = Field(
@@ -71,7 +71,7 @@ class Medication(BaseModel):
 
 
 class MedicalHistory(BaseModel):
-    """Medical history or emergency alert record."""
+    """Record of a diagnosed disease."""
 
     date: str = Field(description="Date of the record or event")
     disease: str = Field(description="Condition or disease")
@@ -82,7 +82,7 @@ class MedicalHistory(BaseModel):
 
 
 class Bill(BaseModel):
-    """Extracted bill information."""
+    """Medical bill."""
 
     amount: float
     currency: str = "USD"

@@ -1,0 +1,25 @@
+{
+  "label": "Medical bill – UCSF Benioff Medical Center",
+  "from_name": "UCSF Benioff Medical Center Billing",
+  "from_local": "billing@ucsf.edu",
+  "subject": "Your UCSF statement is ready – Amount due: $347.80",
+  "body": "Dear Jane Doe,\n\nYour statement for recent medical services is now available. Please review the details below and remit payment by the due date.\n\nAccount Number: UCH-4829-3317\nInvoice Number: INV-2026-0391\nDate of Service: March 7, 2026\nVendor: UCSF Benioff Medical Center\nDescription: Office visit and lab work – Primary Care (Dr. Sarah Kim, MD)\n\nAmount Due: $347.80\nDue Date: April 15, 2026\n\nYour insurance has been billed and the above amount reflects your patient responsibility after adjustments. If you have questions about your bill, please call our billing department at (415) 555-0200 or log in to MyChart at mychart.ucsf.edu to view your itemized statement.\n\nPayment options:\n  • Online: mychart.ucsf.edu/billing\n  • Phone: (415) 555-0200\n  • Mail: UCSF Billing Department, PO Box 45678, San Francisco, CA 94145\n\nIf you are experiencing financial hardship, you may qualify for our financial assistance program. Contact our billing department for details.\n\nUCSF Benioff Medical Center\nPatient Billing Services",
+  "attachments": [],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "Bill",
+        "required": {
+          "amount": 347.80,
+          "vendor": "UCSF"
+        },
+        "optional": {
+          "due_date": "2026-04-15",
+          "account_number": "UCH-4829-3317",
+          "invoice_number": "INV-2026-0391"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "label": "HOA compliance notice – parking violation",
+  "from_name": "Sunrise Ridge Homeowners Association",
+  "from_local": "hoa@sunriseridge",
+  "subject": "OFFICIAL COMPLIANCE NOTICE – Parking Violation",
+  "body": "OFFICIAL COMPLIANCE NOTICE\n\nFrom: Sunrise Ridge Homeowners Association\nDate Issued: March 15, 2026\nTo: Property Owner, 42 Sunrise Ridge Drive, Unit C\nSubject: Parking Violation — Unauthorized Vehicle Storage\n\nDear Property Owner,\n\nThis is an official Compliance Notice issued by the Sunrise Ridge Homeowners Association (HOA) regarding an observed violation of Section 6.3(b) of the Sunrise Ridge Declaration of Covenants, Conditions, and Restrictions (CC&Rs).\n\nNature of Violation: An inoperable or stored vehicle (a 2008 Honda Civic lacking current registration and with a flat tire) has been parked continuously in designated guest parking space G-7 for more than seventy-two (72) consecutive hours, in violation of community parking rules which prohibit the storage of non-operational vehicles.\n\nRequired Action: You are required to either (1) remove the vehicle from the property or (2) provide written documentation to the HOA Management Office proving the vehicle is operational and currently registered — no later than April 1, 2026.\n\nConsequences of Non-Compliance: Failure to comply by the stated deadline of April 1, 2026 may result in the vehicle being towed at the registered owner's expense and a fine of $250 being assessed against your account.\n\nPlease contact the HOA management office at (925) 555-0117 or hoa@sunriseridge.org if you have questions or wish to formally dispute this notice. Appeals must be submitted in writing within fifteen (15) days of this notice.\n\nBoard of Directors\nSunrise Ridge Homeowners Association",
+  "attachments": [],
+  "expected": {
+    "domain": "legal",
+    "schemas": [
+      {
+        "type": "LegalNotice",
+        "required": {
+          "type": "Compliance"
+        },
+        "optional": {
+          "sender": "Sunrise Ridge",
+          "date": "2026-03-15",
+          "subject": "Parking",
+          "deadline": "2026-04-01"
+        }
+      }
+    ]
+  }
+}

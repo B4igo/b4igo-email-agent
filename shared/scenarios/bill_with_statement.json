@@ -1,0 +1,24 @@
+{
+  "label": "Medical bill with attached statement – Eastside Medical Group",
+  "from_name": "Eastside Medical Group Billing",
+  "from_local": "billing@eastsidemedical",
+  "subject": "Your March statement is ready – Eastside Medical Group",
+  "body": "Dear Jane,\n\nYour itemized statement for services rendered in March 2026 is attached to this email.\n\nAccount Number: EMG-7731-02\nAmount Due: $215.50\nDue Date: April 28, 2026\nVendor: Eastside Medical Group\n\nThis statement reflects your balance after insurance processing. Please refer to the attached document for a full breakdown of charges, payments, and adjustments.\n\nTo pay online, visit eastsidemedical.com/billing or call (510) 555-0312.\n\nEastside Medical Group\nPatient Billing Services",
+  "attachments": ["attachments/march-statement.txt"],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "Bill",
+        "required": {
+          "amount": 215.50,
+          "vendor": "Eastside Medical"
+        },
+        "optional": {
+          "due_date": "2026-04-28",
+          "account_number": "EMG-7731-02"
+        }
+      }
+    ]
+  }
+}

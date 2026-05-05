@@ -3,37 +3,17 @@
 import logging
 import os
 import sys
-import tempfile
 from typing import Tuple
 
 import requests
-from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
 from flask import Flask, Response, jsonify, request
 from werkzeug.datastructures import FileStorage
 
 from ai_service.ai_pipeline.ai_pipeline import AIPipeline
+from shared.attachment_utils import append_attachments_to_text
 
 FlaskResponse = Tuple[Response, int]
 """Response and error code"""
-
-accelerator_options = AcceleratorOptions(num_threads=8, device=AcceleratorDevice.CPU)
-
-pipeline_options = PdfPipelineOptions()
-pipeline_options.accelerator_options = accelerator_options
-
-# TODO: GPU processing is not working on my (Jake's) machine for some reason
-# this uses cpu instead
-# TODO: Do you need to specify cpu for each input type?
-converter = DocumentConverter(
-    format_options={
-        InputFormat.PDF: PdfFormatOption(
-            pipeline_options=pipeline_options,
-        )
-    }
-)
 
 # TODO: Will need to be changed when hooked up
 reranker_model = os.environ.get("RERANKER_MODEL", None)
@@ -49,29 +29,6 @@ logging.basicConfig(
 logger = logging.getLogger("ai-service")
 
 app = Flask(__name__)
-
-
-def _append_attachments_to_text(files: list[FileStorage], text: str) -> str:
-    text += "\n\nAttachments: \n------------------\n\n"
-    text += _convert_attachments_to_text(files)
-    return text
-
-
-def _convert_attachments_to_text(files: list[FileStorage]) -> str:
-    text = ""
-    for i, f in enumerate(files):
-        ext = os.path.splitext(f.filename or "")[1]
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-            f.save(tmp.name)
-            tmp_path = tmp.name
-        try:
-            result = converter.convert(tmp_path)
-            text += f"ATTACHMENT {i}: \n"
-            text += result.document.export_to_markdown()
-            text += "\n"
-        finally:
-            os.remove(tmp_path)
-    return text
 
 
 def enqueue_confirmation(username: str, payload: str):
@@ -159,7 +116,7 @@ def parse_text_with_attachments() -> FlaskResponse:
     if not files:
         files = []
 
-    text = _append_attachments_to_text(files, text)
+    text = append_attachments_to_text(files, text)
     entries = pipeline(text)
     for entry in entries:
         enqueue_confirmation(username, entry.model_dump_json())

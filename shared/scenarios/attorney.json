@@ -1,0 +1,25 @@
+{
+  "label": "Attorney engagement letter – Patricia Nguyen",
+  "from_name": "Nguyen & Associates Legal Group",
+  "from_local": "pnguyen@nguyenlaw",
+  "subject": "Engagement Confirmation – Nguyen & Associates Legal Group",
+  "body": "Dear Ms. Johnson,\n\nThank you for choosing Nguyen & Associates Legal Group to represent you. We are pleased to confirm our engagement to assist you with your business contract matter.\n\nYour primary attorney will be Patricia Nguyen, Esq., who leads our Business and Contract Law division. Ms. Nguyen has over fifteen years of experience in contract law and commercial litigation, and has successfully represented clients in a wide range of business disputes and transactional matters.\n\nTo reach Ms. Nguyen directly:\nEmail: pnguyen@nguyenlaw.com\nPhone: (415) 555-0188\nDirect Line: (415) 555-0189\n\nOur office is located at 580 California Street, Suite 1200, San Francisco, CA 94104. Office hours are Monday through Friday, 9:00 AM to 6:00 PM.\n\nPlease review the attached engagement agreement at your earliest convenience. It outlines our fee structure, billing practices, scope of representation, and your rights as a client. Once we receive your signed agreement and retainer payment of $2,500, we will begin our analysis of your matter immediately.\n\nWe look forward to working with you.\n\nSincerely,\nPatricia Nguyen, Esq.\nNguyen & Associates Legal Group\npnguyen@nguyenlaw.com\n(415) 555-0188",
+  "attachments": [],
+  "expected": {
+    "domain": "legal",
+    "schemas": [
+      {
+        "type": "Attorney",
+        "required": {
+          "name": "Patricia Nguyen"
+        },
+        "optional": {
+          "firm": "Nguyen",
+          "specialty": "Contract",
+          "email": "pnguyen@nguyenlaw.com",
+          "phone": "415"
+        }
+      }
+    ]
+  }
+}

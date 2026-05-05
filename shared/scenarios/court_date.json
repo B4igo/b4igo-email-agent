@@ -1,0 +1,25 @@
+{
+  "label": "Civil court hearing notice – Case CV-2026-04178",
+  "from_name": "Alameda County Superior Court",
+  "from_local": "clerk@alameda.courts.ca.gov",
+  "subject": "Notice of Civil Hearing – Case CV-2026-04178",
+  "body": "NOTICE OF CIVIL HEARING\n\nCase Number: CV-2026-04178\nCourt: Superior Court of California, County of Alameda, Department 17\nCase Type: Civil — Small Claims\n\nDear Respondent,\n\nYou are hereby notified that a hearing in the above-referenced civil matter has been scheduled as follows:\n\nDate: Wednesday, June 3, 2026\nTime: 9:30 AM\nLocation: René C. Davidson Courthouse, 1225 Fallon Street, Oakland, CA 94612, Department 17\n\nYou are required to appear at this hearing in person. If you fail to appear, the court may enter a default judgment against you without further notice.\n\nPlease bring all documentation, contracts, receipts, photographs, and any other evidence supporting your position. You may also bring witnesses who have direct knowledge of the facts in dispute.\n\nIf you require a continuance of the hearing date, you must file a written request with the clerk's office at least ten (10) court days before the scheduled hearing date. Continuances are granted at the court's discretion and are not automatic.\n\nFor case information or to request forms, contact the Civil Division at (510) 891-6012, Monday through Friday, 8:00 AM to 4:30 PM.\n\nOffice of the Clerk\nSuperior Court of California, County of Alameda",
+  "attachments": [],
+  "expected": {
+    "domain": "legal",
+    "schemas": [
+      {
+        "type": "CourtDate",
+        "required": {
+          "date": "2026",
+          "court": "Alameda"
+        },
+        "optional": {
+          "time": "9:30",
+          "case_number": "CV-2026-04178",
+          "case_type": "Civil"
+        }
+      }
+    ]
+  }
+}

@@ -1,11 +1,8 @@
 """Subpackage containing schemas and related utilities."""
 
-from shared.schemas import legal_schemas  # noqa: F401
-from shared.schemas import personal_schemas  # noqa: F401
-from shared.schemas import schemas  # noqa: F401
 from shared.schemas.legal_schemas import Attorney, Contract, CourtDate, LegalNotice
 from shared.schemas.personal_schemas import Contact, PersonalEvent, Reminder
-from shared.schemas.schemas import (
+from shared.schemas.health_schemas import (
     Appointment,
     Bill,
     Doctor,

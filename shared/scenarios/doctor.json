@@ -1,0 +1,34 @@
+{
+  "label": "New patient welcome – Dr. Marcus Webb",
+  "from_name": "Eastside Medical Group",
+  "from_local": "welcome@eastsidemedical",
+  "subject": "Welcome to Eastside Medical Group – Your New Patient Intake",
+  "body": "Dear Jane,\n\nWelcome to Eastside Medical Group! We're thrilled to have you as a new patient. Your primary care provider will be Dr. Marcus Webb, who specializes in Internal Medicine and has been practicing at Eastside Medical Group for over twelve years.\n\nDr. Webb's practice is located at 3400 Telegraph Avenue, Suite 150, Oakland, CA 94609. Office hours are Monday through Friday, 8:00 AM to 5:00 PM. You can reach the office directly at (510) 555-0312.\n\nWe have scheduled your new patient intake appointment for Thursday, April 3, 2026 at 2:00 PM. Please plan to arrive 20 minutes early to complete your intake paperwork, or log in to your patient portal ahead of time to fill out your health history forms online.\n\nPlease bring a valid photo ID, your insurance card, and a list of any current medications to your first visit.\n\nTo access your patient portal and manage future appointments, visit eastsidemedical.com or call our front desk at (510) 555-0312.\n\nLooking forward to providing you with excellent care!\n\nThe Eastside Medical Group Team",
+  "attachments": [],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "Doctor",
+        "required": {
+          "doctor_name": "Marcus Webb"
+        },
+        "optional": {
+          "type": "Internal Medicine",
+          "location": "Eastside Medical Group"
+        }
+      },
+      {
+        "type": "Appointment",
+        "required": {
+          "provider": "Marcus Webb"
+        },
+        "optional": {
+          "date": "2026-04-03",
+          "time": "2:00",
+          "location": "3400 Telegraph"
+        }
+      }
+    ]
+  }
+}

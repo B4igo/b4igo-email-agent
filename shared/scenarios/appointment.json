@@ -1,0 +1,25 @@
+{
+  "label": "Doctor appointment reminder",
+  "from_name": "Dr. Sarah Mitchell - Lakewood Family Medicine",
+  "from_local": "appointments@lakewoodfamilymed",
+  "subject": "Appointment Confirmation – Dr. Eleanor Reyes – Tuesday, May 19",
+  "body": "Hi Sarah,\n\nJust a quick note to confirm your upcoming visit with Dr. Eleanor Reyes. We have you down for Tuesday, May 19th at 10:30 AM at our Harbor View office (482 Harbor View Drive, Suite 210, in Oakland — Suite 210 is on the second floor, and the elevators are just past the lobby coffee shop). Dr. Reyes has blocked off about 45 minutes for your annual physical and wellness check, so you shouldn't feel rushed.\n\nA few things to keep in mind before you come in. Since we'll be drawing blood as part of the annual, please don't eat anything for at least 8 hours beforehand — water and black coffee are fine. We'd also love it if you could get here about 15 minutes early so the front desk can update your intake forms while you settle in. And if you've had any lab work, imaging, or specialist visits since we last saw you, bring those records along (or have them faxed over ahead of time) so Dr. Reyes can go over everything in one sitting.\n\nIf something comes up and you need to reschedule, just reply to this email or give us a call at (510) 555-0142 — we just ask for at least 24 hours' notice, since late cancellations are subject to a $50 fee.\n\nLooking forward to seeing you next Tuesday!\n\nWarm regards,\nThe Bayside Family Medicine Team\n(510) 555-0142\nwww.baysidefamilymed.com",
+  "attachments": [],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "Appointment",
+        "required": {
+          "provider": "Eleanor Reyes"
+        },
+        "optional": {
+          "time": "10:30",
+          "location": "Harbor View",
+          "appointment_type": "annual physical",
+          "duration": 45
+        }
+      }
+    ]
+  }
+}

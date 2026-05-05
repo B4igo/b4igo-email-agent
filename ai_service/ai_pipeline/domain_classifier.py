@@ -20,12 +20,33 @@ class DomainClassifier:
 
     DEFAULT_RERANKER = "Qwen/Qwen3-Reranker-0.6B"
 
+    # Minimum softmax-normalised score to accept a non-"other" domain.
+    # With 5 categories, pure-random baseline is 0.20. Below this value the
+    # classifier is too uncertain to commit to a structured domain, so the
+    # result is overridden to "other". Tune based on observed false positives
+    # (spam/system emails bleeding into health/legal/personal) vs. false
+    # negatives (legitimate structured emails being dropped).
+    CONFIDENCE_THRESHOLD: float = 0.35
+
     def __init__(self, reranker_model: Optional[str] = None):
         """Initialize model and categories."""
         if not reranker_model:
-            self.model = CrossEncoder(self.DEFAULT_RERANKER)
-        else:
-            self.model = CrossEncoder(reranker_model)
+            reranker_model = self.DEFAULT_RERANKER
+
+        self.model = CrossEncoder(
+            reranker_model,
+            prompts={
+                "classification": "Classify whether the document matches the query topic"
+            },
+            device="cpu",
+        )
+        # Qwen3-Reranker doesn't define a pad token by default, which breaks
+        # batched inference. Fall back to eos_token (standard practice for Qwen).
+        tokenizer = self.model.tokenizer
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            # Keep the model config in sync so attention masking works correctly
+            self.model.model.config.pad_token_id = tokenizer.pad_token_id
 
         # Define category descriptions for semantic matching
         self._categories = {
@@ -53,11 +74,6 @@ class DomainClassifier:
                 "casual communication, catch-ups, personal updates, birthday wishes, "
                 "personal invitations, private matters"
             ),
-            "other": (
-                "General correspondence, miscellaneous content, newsletters, "
-                "notifications, automated messages, system alerts, "
-                "uncategorized content that doesn't fit specific categories"
-            ),
         }
         self._category_list: list[str] = list(self._categories.keys())
 
@@ -80,9 +96,15 @@ class DomainClassifier:
 
         all_scores: Dict[str, float] = dict(zip(self._category_list, normalised))
         best_index = int(max(range(len(normalised)), key=lambda i: normalised[i]))
+        best_domain: Domain = self._category_list[best_index]  # type: ignore
+        best_confidence = normalised[best_index]
+
+        # Fall back to "other" when confidence is too low to trust the top domain.
+        if best_domain != "other" and best_confidence < self.CONFIDENCE_THRESHOLD:
+            best_domain = "other"
 
         return ClassificationResult(
-            domain=self._category_list[best_index],  # type: ignore
-            confidence=normalised[best_index],
+            domain=best_domain,
+            confidence=best_confidence,
             all_scores=all_scores,
         )

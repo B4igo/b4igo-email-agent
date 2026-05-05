@@ -1,0 +1,25 @@
+{
+  "label": "Sarah's 30th birthday party invitation",
+  "from_name": "Amanda Chen",
+  "from_local": "amanda.chen.personal@gmail",
+  "subject": "You're invited! Sarah's 30th Birthday – April 12",
+  "body": "Hey everyone!\n\nYou're invited to celebrate Sarah's 30th Birthday!\n\nEvent: Sarah's 30th Birthday Celebration\nDate: Sunday, April 12, 2026\nTime: 7:00 PM (doors open at 6:45 PM)\nLocation: The Rooftop Lounge, 450 Grand Avenue, Oakland, CA 94610\n\nWe're planning an amazing evening of cocktails, a sit-down dinner, and dancing to celebrate our favorite person turning the big 3-0. The restaurant has a gorgeous view of the Oakland hills and a private section reserved just for our group.\n\nDress code is smart casual — think nice jeans and a blazer, or a cocktail dress. No need to go full formal, just look a little sharp!\n\nWe're asking everyone to contribute $45 toward a group gift for Sarah — I'll collect via Venmo (@amandachen88) before April 8th. And please RSVP by April 5th so we can give the restaurant an accurate headcount.\n\nHope to see everyone there! Feel free to forward this to Mike, Jenny, and Carlos — the more the merrier!\n\nWith love,\nAmanda",
+  "attachments": [],
+  "expected": {
+    "domain": "personal",
+    "schemas": [
+      {
+        "type": "PersonalEvent",
+        "required": {
+          "event_name": "Birthday"
+        },
+        "optional": {
+          "date": "2026-04-12",
+          "time": "7:00",
+          "location": "Rooftop Lounge",
+          "type": "birthday"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "label": "Software Consulting Services Agreement for review",
+  "from_name": "TechStart Solutions LLC",
+  "from_local": "contracts@techstart",
+  "subject": "Action Required: Software Consulting Services Agreement – Please Review and Sign",
+  "body": "Dear Mr. Alvarez,\n\nPlease find enclosed for your review the Software Consulting Services Agreement between TechStart Solutions LLC and DataBridge Consulting, Inc.\n\nKey Terms:\nContract Title: Software Consulting Services Agreement\nParties: TechStart Solutions LLC (Client) and DataBridge Consulting, Inc. (Consultant)\nEffective Date: May 1, 2026\nContract Term: Twelve (12) months\nExpiration Date: April 30, 2027\nScope: The Consultant will provide software development services including architecture design, backend development, API integration, and technical advisory services as detailed in the attached Statement of Work.\nCompensation: $12,500 per month, invoiced on the first of each month.\n\nThis agreement has been reviewed by our in-house legal team and is ready for execution. Please review all terms carefully with your own legal counsel before signing. If you have any questions, require modifications, or wish to schedule a call to discuss the agreement, please contact our legal team at contracts@techstart.io or (628) 555-0202.\n\nWe look forward to a successful partnership.\n\nTechStart Solutions LLC\nLegal & Contracts Team\ncontracts@techstart.io",
+  "attachments": [],
+  "expected": {
+    "domain": "legal",
+    "schemas": [
+      {
+        "type": "Contract",
+        "required": {
+          "title": "Consulting Services Agreement"
+        },
+        "optional": {
+          "effective_date": "2026-05-01",
+          "expiry_date": "2027-04-30",
+          "description": "software development"
+        }
+      }
+    ]
+  }
+}

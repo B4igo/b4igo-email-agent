@@ -1,0 +1,23 @@
+{
+  "label": "Patient portal – new diagnosis added",
+  "from_name": "UCSF MyChart Patient Portal",
+  "from_local": "noreply@mychart.ucsf.edu",
+  "subject": "New Health Record Added to Your Patient Portal",
+  "body": "Dear Jane,\n\nA new record has been added to your health profile in the UCSF MyChart Patient Portal.\n\nRecord Date: March 7, 2026\nCondition: Hypertension (High Blood Pressure)\nAdding Provider: Dr. Sarah Kim, MD — Primary Care\n\nDetails: You were diagnosed with Hypertension during your routine wellness visit on March 7, 2026. Your blood pressure reading at the time of diagnosis was 145/92 mmHg, which is above the normal range (under 120/80 mmHg). Dr. Kim has recommended the following course of action:\n\n1. Lifestyle modifications: reduce sodium intake to under 2,300 mg/day, engage in regular aerobic exercise at least 30 minutes five times per week, and increase daily water intake.\n2. Medication: Lisinopril 10mg, prescribed once daily in the morning to help manage blood pressure.\n3. Follow-up: A follow-up appointment is scheduled for June 2026 to reassess your blood pressure and adjust treatment as needed.\n\nThis record is now visible in the \"My Health History\" section of your patient portal. If you believe this record was added in error, please contact your care team directly.\n\nMyChart Health Portal\nUCSF Medical Center",
+  "attachments": [],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "MedicalHistory",
+        "required": {
+          "date": "2026",
+          "disease": "Hypertension"
+        },
+        "optional": {
+          "description": "blood pressure"
+        }
+      }
+    ]
+  }
+}

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock
 
-from shared.schemas.schemas import Doctor, Insurance, MedicalHistory, Medication
+from shared.schemas.health_schemas import Doctor, Insurance, MedicalHistory, Medication
 from shared.vault.b4igo_api_storage import B4igoVaultApiStorage
 from shared.vault.client import VaultClient, build_vault_storage_from_env
 from shared.vault.storage import VaultStorage

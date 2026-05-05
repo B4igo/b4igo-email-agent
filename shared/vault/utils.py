@@ -4,7 +4,7 @@ from typing import Any, Optional, Union
 
 from pydantic import ValidationError
 
-from shared.schemas.schemas import Doctor, Insurance, MedicalHistory, Medication
+from shared.schemas.health_schemas import Doctor, Insurance, MedicalHistory, Medication
 
 VaultRecord = Union[Doctor, Insurance, Medication, MedicalHistory]
 

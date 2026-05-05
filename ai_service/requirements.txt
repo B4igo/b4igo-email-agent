@@ -4,5 +4,5 @@ docling
 requests
 ollama
 numpy
-sentence-transformers
+sentence-transformers==5.4.1
 scikit-learn

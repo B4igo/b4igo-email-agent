@@ -1,0 +1,12 @@
+{
+  "label": "StyleHouse spring sale (promotional email)",
+  "from_name": "StyleHouse Boutique",
+  "from_local": "deals@stylehouse",
+  "subject": "Spring Sale – Up to 30% Off Everything This Week Only!",
+  "body": "Huge Spring Sale — Up to 30% Off Everything!\n\nHi Jane,\n\nSpring has sprung, and so have our savings! For a limited time only, enjoy up to 30% off your entire purchase at StyleHouse Boutique.\n\nUse code SPRING30 at checkout — valid online at stylehouse.com and in all retail locations through April 30, 2026.\n\nFeatured this season:\n  • Women's linen blazers – was $89.99, now $62.99\n  • Men's chino pants – was $59.99, now $41.99\n  • Casual summer dresses – was $74.99, now $52.49\n  • Lightweight cardigans – was $49.99, now $34.99\n\nPlus: free shipping on all orders over $75! No minimum for in-store purchases.\n\nShop our full spring collection at stylehouse.com or visit any of our 14 Bay Area locations.\n\nQuestions? Contact us at support@stylehouse.com or call (800) 555-0192, Monday–Friday 9 AM to 7 PM.\n\nStyleHouse Boutique | 123 Fashion Ave | New York, NY 10001\nTo unsubscribe from marketing emails, click here.",
+  "attachments": [],
+  "expected": {
+    "domain": "other",
+    "schemas": []
+  }
+}

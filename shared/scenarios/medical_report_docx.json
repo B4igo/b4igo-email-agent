@@ -1,0 +1,23 @@
+{
+  "label": "Lab results report – Hypercholesterolemia (PDF)",
+  "from_name": "UCSF Benioff Medical Center",
+  "from_local": "noreply@labresults.ucsf.edu",
+  "subject": "Your Lab Results Are Ready – Lipid Panel",
+  "body": "Hello Jane,\n\nYour recent lab results from your visit on April 15, 2026 have been finalized and reviewed by your ordering physician, Dr. Howard Kim. The full report is attached to this email as a Word document for your records.\n\nA few notes about reviewing your results:\n\n  • Dr. Kim has included clinical notes and follow-up recommendations directly in the attached report. Please read these carefully.\n  • If your physician has flagged anything that requires action on your part, you'll see it noted in the \"Physician Notes\" section.\n  • You can also view this report anytime through the UCSF MyChart patient portal at mychart.ucsf.edu.\n\nIf you'd like to discuss your results, you can message Dr. Kim's office directly through MyChart or call (415) 555-0142 to schedule a follow-up appointment.\n\nPlease note that this is an automated notification — replies to this email address are not monitored. For any questions about your results or care, please contact your provider's office directly.\n\nThank you for choosing UCSF for your care.\n\nUCSF Benioff Medical Center\nClinical Laboratories\n1 Medical Center Drive, Oakland, CA 94609",
+  "attachments": ["attachments/lab_results_lipid_panel.docx"],
+  "expected": {
+    "domain": "health",
+    "schemas": [
+      {
+        "type": "MedicalHistory",
+        "required": {
+          "date": "2026",
+          "disease": "Hypercholesterolemia"
+        },
+        "optional": {
+          "description": "cholesterol"
+        }
+      }
+    ]
+  }
+}

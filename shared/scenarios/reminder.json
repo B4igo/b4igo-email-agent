@@ -1,0 +1,24 @@
+{
+  "label": "Reminder – book travel for family reunion",
+  "from_name": "B4iGo Task Assistant",
+  "from_local": "reminders@b4igo",
+  "subject": "Reminder: Book flights and hotel for the family reunion – deadline coming up",
+  "body": "Hi Jane,\n\nHeads up — you still haven't booked your flights or accommodation for the Touchet family reunion, and prices are starting to climb.\n\nTask: Book flights and hotel for the family reunion weekend\nTrip Dates: June 21–23, 2026\nBooking Deadline: May 15, 2026\nPriority: High\nCategory: Travel\n\nWhat you still need to do:\n1. Book round-trip flights to Charlotte Douglas International Airport (CLT). Check Southwest, Delta, and American for the best rates from Oakland International (OAK). Prices tend to spike after Memorial Day, so book soon.\n2. Reserve a room at the Hampton Inn on Carmel Road — Aunt Carol set up a group block at $129/night. Call the hotel directly at (704) 555-0149 and mention the Touchet Family Reunion block before it fills up.\n3. Confirm your headcount with Uncle Dave (touchet.david@gmail.com) by May 10 so he can finalize catering.\n\nThe reunion is at the Touchet Family Farm, 4411 Waxhaw Road, Waxhaw, NC 28173.\n\nThis reminder was sent from your B4iGo personal task assistant.",
+  "attachments": [],
+  "expected": {
+    "domain": "personal",
+    "schemas": [
+      {
+        "type": "Reminder",
+        "required": {
+          "task": "family reunion"
+        },
+        "optional": {
+          "due_date": "2026-05-15",
+          "priority": "High",
+          "category": "Travel"
+        }
+      }
+    ]
+  }
+}

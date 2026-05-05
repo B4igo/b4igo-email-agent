@@ -14,7 +14,7 @@ Body: I have an appointment scheduled with Dr. Smith at the downtown
 clinic on July 20th.
 
 Your output should look like this:
-```
+
 {
     "results": [
         {
@@ -26,6 +26,9 @@ Your output should look like this:
         }
     ]
 }
+
+DO NOT surround the output with backticks and declare it as a json(```json```). Your
+output will be directly parsed as a json file.
 
 Only include information that can be directly extracted from the email
 and do not make any assumptions or inferences.

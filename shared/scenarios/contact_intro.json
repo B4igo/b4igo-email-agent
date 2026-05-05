@@ -1,0 +1,24 @@
+{
+  "label": "New colleague introduction – Jordan Lee",
+  "from_name": "Jordan Lee",
+  "from_local": "jordan.lee@company",
+  "subject": "Quick intro – Jordan Lee, new Account Manager",
+  "body": "Hi there!\n\nI wanted to reach out and introduce myself — I'm Jordan Lee, the new Account Manager joining the team this Monday. I'll be working alongside you on the enterprise accounts starting in April, and I'm really excited to get up to speed.\n\nA little about me: I'm coming from a background in SaaS sales, most recently at Vertex Analytics where I managed a portfolio of about thirty mid-market accounts. I'm based in the Oakland office and I'm looking forward to connecting in person as soon as we get a chance.\n\nThe best way to reach me is by email at jordan.lee@company.com, or by phone at (669) 555-0247. I'm also usually available on Slack (@jordanlee) during business hours — feel free to ping me there for anything quick.\n\nI'd love to schedule a short 30-minute intro call in the next week or two to hear more about what you're currently working on and how we can support each other. No agenda, just getting to know each other.\n\nLooking forward to working with you!\n\nJordan Lee\nAccount Manager\njordan.lee@company.com\n(669) 555-0247",
+  "attachments": [],
+  "expected": {
+    "domain": "personal",
+    "schemas": [
+      {
+        "type": "Contact",
+        "required": {
+          "name": "Jordan Lee"
+        },
+        "optional": {
+          "email": "jordan.lee@company.com",
+          "phone": "669",
+          "relationship": "colleague"
+        }
+      }
+    ]
+  }
+}

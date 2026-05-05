@@ -14,10 +14,10 @@ from werkzeug.datastructures import FileStorage
 
 import ai_service.app as api_module
 from ai_service.app import (
-    _append_attachments_to_text,
     parse_text,
     parse_text_with_attachments,
 )
+from shared.attachment_utils import append_attachments_to_text
 
 HERE = Path(__file__).resolve().parent
 
@@ -195,7 +195,7 @@ class TestAppendAttachmentsToText(TestCase):
 
         with open(self.test_attachment_filepath, "rb") as fp:
             files = [FileStorage(fp)]
-            result = _append_attachments_to_text(files, text)
+            result = append_attachments_to_text(files, text)
 
         self.assertIn(text, result)
         self.assertIn("Attachments:", result)
@@ -203,14 +203,14 @@ class TestAppendAttachmentsToText(TestCase):
     def test_appending_attachments_includes_separator(self):
         with open(self.test_attachment_filepath, "rb") as fp:
             files = [FileStorage(fp)]
-            result = _append_attachments_to_text(files, "prefix text")
+            result = append_attachments_to_text(files, "prefix text")
 
         self.assertIn("------------------", result)
 
     def test_appending_attachments_labels_attachment_index(self):
         with open(self.test_attachment_filepath, "rb") as fp:
             files = [FileStorage(fp)]
-            result = _append_attachments_to_text(files, "")
+            result = append_attachments_to_text(files, "")
 
         self.assertIn("ATTACHMENT 0:", result)
 
