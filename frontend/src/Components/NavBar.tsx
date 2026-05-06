@@ -4,7 +4,7 @@ import { Link as RouterLink } from 'react-router-dom';
 export default function NavBar({ children }: { children: React.ReactNode }) {
     return <>
         <Card sx={{ display: 'flex', justifyContent: 'space-between', boxShadow: 3 }}>
-            <Button href="/" aria-label="home" sx={{ margin: 1 }}>
+            <Button component={RouterLink} to="/" aria-label="home" sx={{ margin: 1 }}>
                 <Box component="img" src="https://www.b4igo.com/B4iGo-logo.png" alt="home" sx={{ width: 164, height: 32 }} />
             </Button>
             <Stack direction="row">
