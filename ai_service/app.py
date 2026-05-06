@@ -74,11 +74,11 @@ def _convert_attachments_to_text(files: list[FileStorage]) -> str:
     return text
 
 
-def enqueue_confirmation(username: str, payload: str):
+def enqueue_confirmation(username: str, payload: str, schema_name: str):
     """POST a confirmation to the backend API."""
     resp = requests.post(
         f"{BACKEND_URL}/api/confirmations/enqueue",
-        json={"user_id": username, "jsonPayload": payload},
+        json={"user_id": username, "jsonPayload": payload, "schemaName": schema_name},
         timeout=30,
     )
     if resp.status_code == 201:
@@ -123,7 +123,7 @@ def parse_text() -> FlaskResponse:
         )
 
     for entry in entries:
-        enqueue_confirmation(payload.get("username"), entry.model_dump_json())
+        enqueue_confirmation(payload.get("username"), entry.model_dump_json(), entry.__class__.__name__)
 
     return (
         jsonify({"status": "processed"}),
@@ -162,7 +162,7 @@ def parse_text_with_attachments() -> FlaskResponse:
     text = _append_attachments_to_text(files, text)
     entries = pipeline(text)
     for entry in entries:
-        enqueue_confirmation(username, entry.model_dump_json())
+        enqueue_confirmation(username, entry.model_dump_json(), entry.__class__.__name__)
 
     return (
         jsonify({"status": "processed"}),

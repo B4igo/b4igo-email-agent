@@ -17,6 +17,7 @@ export const confirmations = {
             return {
                 id: conf.id,
                 jsonPayload: parsed,
+                schemaName: conf.schemaName ?? conf.schema_name ?? "Unknown",
                 edited: conf.edited ?? false
             } as Confirmation;
         });
@@ -26,8 +27,8 @@ export const confirmations = {
         await api.post(`/reject-confirmation`, { id });
     },
 
-    async accept(id: number, jsonPayload: Record<string, string> | undefined = undefined) {
+    async accept(id: number, schemaName: string, jsonPayload: Record<string, string> | undefined = undefined) {
         await api.post(`/accept-confirmation`,
-            jsonPayload ? { id, jsonPayload } : { id });
+            jsonPayload ? { id, schemaName, jsonPayload } : { id, schemaName });
     },
 };

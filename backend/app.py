@@ -19,7 +19,7 @@ from shared.account_manager.client import AccountManagerClient
 from shared.database import db
 from shared.vault.client import VaultClient
 from shared.vault.utils import parse_vault_record
-
+from shared.graphql_mapper import execute_graphql_mutation
 from werkzeug.utils import secure_filename
 
 # TODO look through all these and make sure this is for all/most text documents
@@ -184,6 +184,7 @@ def enqueue_confirmation():
 
         user_id = data["user_id"]
         json_payload = data["jsonPayload"]
+        schema_name = data["schemaName"]
 
         try:
             exists_response = account_manager_client.user_exists(user_id)
@@ -199,10 +200,10 @@ def enqueue_confirmation():
                 502,
             )
 
-        confirmation_id = db.add_confirmation(user_id, json_payload)
+        confirmation_id = db.add_confirmation(user_id, json_payload, schema_name)
         if confirmation_id:
             logger.info(
-                "enqueued confirmation id %s for user %s", confirmation_id, user_id
+                "enqueued confirmation id %s for user %s with schema %s", confirmation_id, user_id, schema_name
             )
             return (
                 jsonify(
@@ -283,6 +284,7 @@ def accept_confirmation():
             raise Exception("missing id parameter")
 
         conf_id = data["id"]
+        schema_name = data.get("schemaName", "Unknown") # Provided by frontend for GraphQL routing
         current_user = flask.g.current_user
 
         if not db.confirmation_exists(conf_id):
@@ -313,20 +315,16 @@ def accept_confirmation():
         else:
             payload = raw if isinstance(raw, dict) else {}
 
-        record = parse_vault_record(payload)
-        if record:
-            vault = VaultClient()
-            vault_id = vault.create(current_user, record)
-            if vault_id is None:
-                logger.warning("vault create failed for confirmation #%s", conf_id)
-                return jsonify({"error": "Vault write failed"}), 502
-            logger.info(
-                "added confirmation #%s to vault as record id %s", conf_id, vault_id
-            )
-        else:
-            logger.warning(
-                "could not parse vault record from confirmation #%s", conf_id
-            )
+        jwt_token = request.headers.get("Authorization", "")
+        error_msg = execute_graphql_mutation(current_user, schema_name, payload, jwt_token)
+
+        if error_msg:
+            logger.warning("GraphQL write failed for confirmation #%s: %s", conf_id, error_msg)
+            return jsonify({"error": f"Vault write failed: {error_msg}"}), 502
+
+        logger.info(
+            "added confirmation #%s to vault via GraphQL setup", conf_id
+        )
 
         db.remove_confirmation(conf_id)
         return "", 200

@@ -22,7 +22,7 @@ export const Confirmations = () => {
             {Confirmations.map((confirmation, i) => (
                 <Card key={confirmation.id} sx={{ minWidth: 350, display: 'flex', flexDirection: 'column', boxShadow: 3 }} variant="outlined">
                     <CardContent sx={{ flexGrow: 1 }}>
-                        <Typography variant="h6" noWrap>Email Confirmation</Typography>
+                        <Typography variant="h6" noWrap>Email Confirmation ({confirmation.schemaName})</Typography>
                         <Stack direction="column" spacing={2} sx={{ mt: 2 }}>
                             {confirmation.jsonPayload && Object.entries(confirmation.jsonPayload).map(([key, value], j) => (
                                 <TextField
@@ -60,7 +60,7 @@ export const Confirmations = () => {
                             fullWidth
                             variant="contained"
                             onClick={() => confirmations
-                                .accept(confirmation.id, confirmation.edited ? confirmation.jsonPayload : undefined)
+                                .accept(confirmation.id, confirmation.schemaName, confirmation.edited ? confirmation.jsonPayload : undefined)
                                 .then(() => SetConfirmations(Confirmations.filter(c => c.id !== confirmation.id)))
                                 .catch(console.error)
                             }

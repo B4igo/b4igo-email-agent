@@ -40,17 +40,19 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT NOT NULL,
                     json_payload TEXT NOT NULL,
+                    schema_name TEXT NOT NULL DEFAULT NULL,
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             """
             )
 
-    def add_confirmation(self, user_id: str, json_payload: str) -> Optional[int]:
+    def add_confirmation(self, user_id: str, json_payload: str, schema_name: str) -> Optional[int]:
         """Add a new confirmation for a user.
 
         Args:
             user_id: User ID this confirmation belongs to
             json_payload: JSON payload string
+            schema_name: The schema for the confirmation payload.
 
         Returns:
             The generated confirmation ID, or None if user doesn't exist.
@@ -58,8 +60,8 @@ class Database:
         try:
             with self._get_connection() as conn:
                 cursor = conn.execute(
-                    "INSERT INTO confirmations (user_id, json_payload) VALUES (?, ?)",
-                    (user_id, json_payload),
+                    "INSERT INTO confirmations (user_id, json_payload, schema_name) VALUES (?, ?, ?)",
+                    (user_id, json_payload, schema_name),
                 )
                 return cursor.lastrowid
         except sqlite3.IntegrityError:
@@ -72,11 +74,11 @@ class Database:
             user_id: User ID to get confirmations for
 
         Returns:
-            List of confirmation dicts with id and jsonPayload.
+            List of confirmation dicts with id, json_payload, and schema_name.
         """
         with self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT id, json_payload FROM confirmations WHERE user_id = ?",
+                "SELECT id, json_payload, schema_name FROM confirmations WHERE user_id = ?",
                 (user_id,),
             )
             return [dict(row) for row in cursor.fetchall()]
@@ -125,7 +127,7 @@ class Database:
                 cursor = conn.execute("DELETE FROM confirmations")
             else:
                 cursor = conn.execute(
-                    "DELETE FROM confirmations WHERE username = ?", (username,)
+                    "DELETE FROM confirmations WHERE user_id = ?", (username,)
                 )
             return cursor.rowcount
 
