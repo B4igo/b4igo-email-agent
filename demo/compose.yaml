@@ -132,19 +132,19 @@ services:
   # ──────────────────────────────────────────────
   # B4iGO Frontend (React/Vite dev server)
   # ──────────────────────────────────────────────
-#  frontend:
-#    build:
-#      context: ..
-#      dockerfile: frontend/Dockerfile
-#    container_name: b4igo-frontend
-#    ports:
-#      - "5173:5173"
-#    environment:
-#      - SERVER_HTTP=http://backend:5000
-#    depends_on:
-#      backend:
-#        condition: service_healthy
-#    restart: unless-stopped
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    container_name: b4igo-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - SERVER_HTTP=http://localhost:5000 # might not set in frontend, need to do it manually in API/Auth.ts
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
   # ──────────────────────────────────────────────
   # AI Service (text/attachment → parsed entries)

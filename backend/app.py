@@ -38,7 +38,7 @@ logger = logging.getLogger("backend")
 # FLASK RUNTIME INIT
 # set the url to the frontend url provided by npm run dev
 app = Flask(__name__)
-CORS(app, origins=["chrome-extension://dbpcogloagbfglggnnedldhjfhbpdeof"], supports_credentials=True)
+CORS(app, origins=["*"], supports_credentials=True)
 
 
 # configure Flask to handle larger requests and timeouts
