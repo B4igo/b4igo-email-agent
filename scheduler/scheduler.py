@@ -25,8 +25,8 @@ ACCOUNT_MANAGER_URL = os.environ.get(
 ).rstrip("/")
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
-POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "30"))
-QUEUE_INTERVAL_SECONDS = int(os.environ.get("QUEUE_INTERVAL_SECONDS", "5"))
+POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "10"))
+QUEUE_INTERVAL_SECONDS = int(os.environ.get("QUEUE_INTERVAL_SECONDS", "2"))
 
 aiCallText = f"{AI_SERVICE_URL}/api/ai/text"
 aiCallAttachments = f"{AI_SERVICE_URL}/api/ai/text-with-attachments"
@@ -112,6 +112,7 @@ def pollToQueue():
                     },
                 }
                 queue.rpush(MainQueue, json.dumps(job))
+                logger.info("enqueued job %s", json.dumps(job))
 
             logger.info("queued %d email(s) for user %s", len(emails), user)
     except Exception as exc:
