@@ -38,17 +38,9 @@ dedicated education record type, so accepted education entries are stored throug
 generic note mutation (`createNotesInput`). Add a typed mapping in
 `shared/graphql_mapper.py` if the vault gains an education type.
 
-## Coupling note
-
-The lightweight `Domain` type alias lives in
-`ai_service/ai_pipeline/domain_classifier.py`, which imports `sentence_transformers`
-at module load. Anything importing `Domain` (the schema prompter, the parser) pulls
-in the heavy ML stack. Moving `Domain` to a dependency-free module would let the
-schema and prompt code be imported and tested without the ML dependencies.
-
 ## Test coverage
 
-Unit tests cover the vault and account-manager logic with mocks. The ai_pipeline
-accuracy tests require a live Ollama server and are gated behind `RUN_OLLAMA_TESTS`.
-There is no automated coverage yet for the scheduler, the backend HTTP endpoints, the
-admin panel, or the frontend.
+Unit tests cover the vault, account-manager, and schema-prompter logic with mocks and
+run in CI. The ai_pipeline accuracy tests require a live Ollama server and are gated
+behind `RUN_OLLAMA_TESTS`. There is no automated coverage yet for the scheduler, the
+backend HTTP endpoints, the admin panel, or the frontend.

@@ -7,16 +7,8 @@ from typing import Optional
 from ollama import ChatResponse, chat
 from pydantic import BaseModel, ValidationError
 
-from ai_service.ai_pipeline.domain_classifier import Domain
-from shared.schemas import education_schemas, legal_schemas, personal_schemas, schemas
+from shared.schemas.domains import DOMAIN_MODULES, Domain
 from shared.schemas.schema_prompter import SchemaPrompter
-
-_DOMAIN_MODULES = {
-    "education": education_schemas,
-    "health": schemas,
-    "legal": legal_schemas,
-    "personal": personal_schemas,
-}
 
 
 class DomainParser:
@@ -58,7 +50,7 @@ class DomainParser:
         if not isinstance(results, list):
             raise ValueError("'results' key must be a list.")
 
-        module = _DOMAIN_MODULES.get(domain)
+        module = DOMAIN_MODULES.get(domain)
         parsed_results: list[BaseModel] = []
         for result in results:
             if not isinstance(result, dict) or not result:

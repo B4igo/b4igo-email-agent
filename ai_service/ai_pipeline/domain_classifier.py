@@ -1,10 +1,10 @@
 """Defines DomainClassifier of AI Pipeline."""
 
-from typing import Dict, Literal, Optional, TypedDict
+from typing import Dict, Optional, TypedDict
 
 from sentence_transformers import CrossEncoder
 
-Domain = Literal["education", "health", "legal", "personal", "other"]
+from shared.schemas.domains import Domain
 
 
 class ClassificationResult(TypedDict):

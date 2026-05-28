@@ -48,4 +48,4 @@ jobs:
           # requires this to be set. The unit tests use fake providers and never
           # call the URL, so a placeholder is sufficient.
           B4IGO_BACKEND_GRAPHQL_URL: http://localhost/query
-        run: pytest shared/account_manager/tests shared/vault/tests
+        run: pytest shared/account_manager/tests shared/vault/tests shared/schemas/tests
