@@ -178,7 +178,6 @@ def execute_graphql_mutation(
     base_url = (os.environ.get("B4IGO_API_BASE_URL") or "http://localhost:5000").rstrip(
         "/"
     )
-    # graphql_url = f"{base_url}/graphql"
 
     input_type, variables = map_schema_to_graphql_variables(
         schema_name, user_id, payload

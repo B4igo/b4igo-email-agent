@@ -35,7 +35,8 @@ converter = DocumentConverter(
     }
 )
 
-# TODO: Will need to be changed when hooked up
+# Model names are configurable via env; None falls back to the pipeline defaults
+# (qwen3:8b for the parser). Override with RERANKER_MODEL / PARSER_MODEL.
 reranker_model = os.environ.get("RERANKER_MODEL", None)
 parser_model = os.environ.get("PARSER_MODEL", None)
 pipeline = AIPipeline(reranker_model=reranker_model, parser_model=parser_model)

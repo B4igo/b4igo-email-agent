@@ -3,11 +3,7 @@ import type {EmailSetupStep} from "../Domain/EmailConnector.ts";
 
 export class EmailConnectorFlow {
     static async startProviderSetup(provider: string, connectorName?: string): Promise<EmailSetupStep[]> {
-        console.log('Starting provider setup flow...', provider);
-
         const steps = await emailConnectors.getSetupSteps(provider, connectorName);
-        console.log('Setup steps received:', steps);
-
         return steps;
     }
 

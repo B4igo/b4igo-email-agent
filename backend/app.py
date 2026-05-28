@@ -79,8 +79,6 @@ def jwt_required():
     def wrapper(fn):
         @wraps(fn)
         def decorator(*args, **kwargs):
-            # Reduced logging for demo
-            # logger.info("Authenticating request for %s", request.path)
             auth_header = request.headers.get("Authorization")
             if not auth_header:
                 return jsonify({"error": "Missing Authorization header"}), 401
@@ -115,8 +113,6 @@ def health_check():
 @app.route("/api/auth/init", methods=["POST"])
 def auth_init():
     """Initialize SIWE flow."""
-    # Reduced logging
-    # logger.info("Received request for /api/auth/init")
     payload = request.get_json(silent=True) or {}
     address = payload.get("address")
     if not address:
@@ -132,8 +128,6 @@ def auth_init():
 @app.route("/api/auth/verify", methods=["POST"])
 def auth_verify():
     """Verify SIWE signature and return JWT."""
-    # Reduced logging
-    # logger.info("Received request for /api/auth/verify")
     payload = request.get_json(silent=True) or {}
     signature = payload.get("signature")
     request_id = payload.get("requestId")
