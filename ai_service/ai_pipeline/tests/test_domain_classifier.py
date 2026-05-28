@@ -1,7 +1,13 @@
-"""Unit tests for DomainClassifier."""
+"""Unit tests for DomainClassifier.
 
+These exercise the real sentence-transformers model and a live Ollama server,
+so they are gated behind RUN_OLLAMA_TESTS=1 to keep `pytest` and CI from
+hanging when no model server is available.
+"""
+
+import os
 from datetime import datetime
-from unittest import TestCase
+from unittest import TestCase, skipUnless
 
 from ai_service.ai_pipeline.domain_classifier import DomainClassifier
 from shared.mail.models import EmailAddress, EmailInput
@@ -37,6 +43,10 @@ def _sample_emails() -> list[EmailInput]:
     ]
 
 
+@skipUnless(
+    os.environ.get("RUN_OLLAMA_TESTS") == "1",
+    "requires a live Ollama server; set RUN_OLLAMA_TESTS=1 to run",
+)
 class TestDomainClassifier(TestCase):
     """Unit tests for DomainClassifier classification."""
 

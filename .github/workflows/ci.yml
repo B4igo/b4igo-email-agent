@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Install the dependencies needed by the ML-free unit suites. The
+      # ai_service / ai_pipeline tests need sentence-transformers, docling, and
+      # a live Ollama server, so they are not run here (see pyproject.toml).
+      - name: Install dependencies
+        run: |
+          pip install pytest
+          pip install -r backend/requirements.txt
+          pip install -r account_manager/requirements.txt
+
+      - name: Run unit tests
+        env:
+          # The account manager service constructs a SIWE client at init, which
+          # requires this to be set. The unit tests use fake providers and never
+          # call the URL, so a placeholder is sufficient.
+          B4IGO_BACKEND_GRAPHQL_URL: http://localhost/query
+        run: pytest shared/account_manager/tests shared/vault/tests

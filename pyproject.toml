@@ -1,3 +1,13 @@
+[tool.pytest.ini_options]
+# Run the whole suite from the repo root with `pytest`. The repo root is added
+# to the import path so top-level packages (shared, ai_service) resolve.
+pythonpath = ["."]
+testpaths = ["shared", "ai_service"]
+# The ai_service/ai_pipeline tests drive a real local Ollama server and the
+# sentence-transformers model. They are gated behind RUN_OLLAMA_TESTS=1 so a
+# normal `pytest` run (and CI) skips them instead of hanging. The ML-free unit
+# tests under shared/ run everywhere.
+
 [tool.isort]
 profile = "black"
 line_length = 88

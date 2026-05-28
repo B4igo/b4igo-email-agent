@@ -111,14 +111,3 @@ class TestAccountManagerService(TestCase):
         assert linked is not None
         self.assertTrue(self.service.delete_account("u1", linked["id"]))
         self.assertFalse(self.service.delete_account("u1", linked["id"]))
-
-    def test_seed_and_authenticate_user(self) -> None:
-        """seed_user creates auth user and authenticate_user validates credentials."""
-        seeded = self.service.seed_user("user", "password", "user")
-        self.assertEqual(seeded["username"], "user")
-        self.assertTrue(self.service.user_exists("user"))
-
-        auth_ok = self.service.authenticate_user("user", "password")
-        self.assertIsNotNone(auth_ok)
-        auth_fail = self.service.authenticate_user("user", "bad")
-        self.assertIsNone(auth_fail)

@@ -1,10 +1,16 @@
-"""Unit tests for DomainParser."""
+"""Unit tests for DomainParser.
+
+These drive a live Ollama server (qwen3:8b by default), so they are gated
+behind RUN_OLLAMA_TESTS=1 to keep `pytest` and CI from hanging when no model
+server is available.
+"""
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
-from unittest import TestCase
+from unittest import TestCase, skipUnless
 
 from ai_service.ai_pipeline.domain_parser import DomainParser
 from shared.mail.models import EmailAddress, EmailInput
@@ -18,6 +24,10 @@ from shared.schemas.schemas import (
 )
 
 
+@skipUnless(
+    os.environ.get("RUN_OLLAMA_TESTS") == "1",
+    "requires a live Ollama server; set RUN_OLLAMA_TESTS=1 to run",
+)
 class TestDomainParser(TestCase):
     """Unit tests for DomainParser parsing with health domain."""
 
