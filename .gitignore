@@ -218,3 +218,8 @@ __marimo__/
 CLAUDE.md
 
 .vscode/
+
+# Secrets
+# Real Google OAuth client secrets. Use client_secrets.json.example as a
+# template and keep the real file out of version control.
+client_secrets.json
