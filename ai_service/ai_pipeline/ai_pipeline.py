@@ -11,9 +11,11 @@ from ai_service.ai_pipeline.domain_parser import DomainParser
 logger = logging.getLogger(__name__)
 
 # Domains for which a parser exists in shared.schemas.schema_prompter.
-# Anything else (e.g. "education", "other") cannot be extracted into structured
-# entries today and should be skipped rather than crash the pipeline.
-SUPPORTED_DOMAINS: frozenset[str] = frozenset({"health", "legal", "personal"})
+# Anything else (e.g. "other") cannot be extracted into structured entries
+# today and should be skipped rather than crash the pipeline.
+SUPPORTED_DOMAINS: frozenset[str] = frozenset(
+    {"education", "health", "legal", "personal"}
+)
 
 
 class AIPipeline:

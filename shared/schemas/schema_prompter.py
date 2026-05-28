@@ -10,13 +10,14 @@ from pydantic import BaseModel
 
 from ai_service.ai_pipeline.domain_classifier import Domain
 
-from . import legal_schemas, personal_schemas, schemas
+from . import education_schemas, legal_schemas, personal_schemas, schemas
 
 
 class SchemaPrompter:
     """Builds prompts containing schema JSON for a given domain."""
 
     _DOMAIN_MODULES: dict[Domain, ModuleType] = {
+        "education": education_schemas,
         "health": schemas,
         "legal": legal_schemas,
         "personal": personal_schemas,
