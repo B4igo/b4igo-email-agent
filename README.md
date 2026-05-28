@@ -156,8 +156,8 @@ Install the git hooks:
 ### AccountManager microservice (internal)
 Run the dedicated account manager server separately from the backend:
 ```bash
-pip install -r account-manager/requirements.txt
-python3 account-manager/account_manager_app.py
+pip install -r account_manager/requirements.txt
+python3 account_manager/account_manager_app.py
 ```
 
 Optional environment variables:

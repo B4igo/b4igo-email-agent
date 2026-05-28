@@ -3,12 +3,12 @@
 # Combines:
 #   - smtp-imap-test mail server + webmail (bundled in demo/smtp-imap-test/)
 #   - Host Ollama (expects qwen3:8b to be available via `ollama pull qwen3:8b`)
-#   - account manager (auth + linked accounts) — Dockerfile in account-manager/
-#   - scheduler (polls account-manager, hands off to ai-service) — Dockerfile in scheduler/
-#   - ai-service (parses email content via Ollama) — Dockerfile in ai_service/
-#   - b4igo backend (Flask API + confirmation queue) — Dockerfile in backend/
-#   - b4igo frontend (React/Vite) — Dockerfile in frontend/
-#   - admin panel (operations UI) — Dockerfile in admin-panel/
+#   - account manager (auth + linked accounts) - Dockerfile in account_manager/
+#   - scheduler (polls account-manager, hands off to ai-service) - Dockerfile in scheduler/
+#   - ai-service (parses email content via Ollama) - Dockerfile in ai_service/
+#   - b4igo backend (Flask API + confirmation queue) - Dockerfile in backend/
+#   - b4igo frontend (React/Vite) - Dockerfile in frontend/
+#   - admin panel (operations UI) - Dockerfile in admin_panel/
 #   - bootstrap (one-shot: links the demo IMAP mailbox so polling kicks off)
 #
 # Mailboxes start empty. Use the admin panel at :5400 to send test emails.
@@ -80,7 +80,7 @@ services:
   account-manager:
     build:
       context: ..
-      dockerfile: account-manager/Dockerfile
+      dockerfile: account_manager/Dockerfile
     container_name: b4igo-account-manager
     ports:
       - "5100:5100"
@@ -246,7 +246,7 @@ services:
   admin-panel:
     build:
       context: ..
-      dockerfile: admin-panel/Dockerfile
+      dockerfile: admin_panel/Dockerfile
     container_name: b4igo-admin-panel
     ports:
       - "127.0.0.1:5400:5400"

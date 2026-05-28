@@ -6,10 +6,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY admin-panel/requirements.txt .
+COPY admin_panel/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY admin-panel/ /app/
+COPY admin_panel/ /app/
 
 # Vendor frontend dependencies (htmx + xterm.js + fit addon).
 RUN set -e; \
