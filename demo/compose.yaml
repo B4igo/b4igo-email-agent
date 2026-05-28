@@ -112,6 +112,10 @@ services:
       - B4IGO_ACCOUNT_MANAGER_URL=http://account-manager:5100
       - B4IGO_BACKEND_URL=http://localhost:5000
       - B4IGO_AI_SERVICE_URL=http://ai-service:5300
+      # Browser origins allowed to make credentialed CORS requests. The demo
+      # frontend is served at localhost:5173. Add a chrome-extension://<id>
+      # origin here if driving the backend from the browser extension.
+      - B4IGO_CORS_ORIGINS=http://localhost:5173
       - B4IGO_VAULT_BACKEND=api
       - B4IGO_API_BASE_URL=https://gatewayservice-test-684919379591.us-central1.run.app/query/
     extra_hosts:
@@ -140,7 +144,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - SERVER_HTTP=http://localhost:5000 # might not set in frontend, need to do it manually in API/Auth.ts
+      # Backend /api base the browser app talks to (see frontend/src/API/Auth.ts).
+      - VITE_BACKEND_URL=http://localhost:5000/api
     depends_on:
       backend:
         condition: service_healthy

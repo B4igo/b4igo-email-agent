@@ -39,7 +39,9 @@ converter = DocumentConverter(
 reranker_model = os.environ.get("RERANKER_MODEL", None)
 parser_model = os.environ.get("PARSER_MODEL", None)
 pipeline = AIPipeline(reranker_model=reranker_model, parser_model=parser_model)
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:5000").rstrip("/")
+# Defaults to localhost for standalone dev; compose overrides with the
+# in-network service name (http://backend:5000).
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:5000").rstrip("/")
 
 logging.basicConfig(
     level=logging.INFO,

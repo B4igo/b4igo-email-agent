@@ -36,9 +36,20 @@ logging.basicConfig(
 logger = logging.getLogger("backend")
 
 # FLASK RUNTIME INIT
-# set the url to the frontend url provided by npm run dev
 app = Flask(__name__)
-CORS(app, origins=["*"], supports_credentials=True)
+
+# CORS allowlist. A wildcard origin ("*") cannot be combined with credentialed
+# requests per the CORS spec, so browsers reject it off-localhost. Configure the
+# allowed origins explicitly via B4IGO_CORS_ORIGINS (comma-separated) and let
+# flask-cors echo the matched origin back. Defaults to the local dev frontend.
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "B4IGO_CORS_ORIGINS", "http://localhost:5173"
+    ).split(",")
+    if origin.strip()
+]
+CORS(app, origins=cors_origins, supports_credentials=True)
 
 
 # configure Flask to handle larger requests and timeouts
