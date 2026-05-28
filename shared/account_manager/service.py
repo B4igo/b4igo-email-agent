@@ -1,16 +1,19 @@
 """Application service for linked account management and provider pulls."""
 
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+import httpx
+import jwt
+
 from .models import EmailSetupStep, ProviderType
 from .providers import EmailProvider, GmailProvider, ImapProvider
 from .storage import AccountStorage
-import httpx
-import os
-import jwt
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class SIWEClient:
     """Client for SIWE GraphQL server."""
@@ -19,28 +22,35 @@ class SIWEClient:
         self.url = url or os.environ.get("B4IGO_BACKEND_GRAPHQL_URL", "")
 
         if not self.url:
-            raise ValueError("B4IGO_BACKEND_GRAPHQL_URL environment variable is not set")
+            raise ValueError(
+                "B4IGO_BACKEND_GRAPHQL_URL environment variable is not set"
+            )
 
         if self.url:
             self.url = self.url.rstrip("/")
 
     def init_siwe(self, address: str) -> dict[str, Any]:
         """Execute HelloServer mutation."""
-        query = '''
+        query = """
         mutation HelloServer($input: SiweHelloRequestInput!) {
           HelloServer(input: $input) {
             siweMessage
             requestId
           }
         }
-        '''
+        """
         variables = {"input": {"address": address}}
         try:
             headers = {
                 "Accept": "application/json",
-                "User-Agent": "B4iGO-AccountManager/1.0"
+                "User-Agent": "B4iGO-AccountManager/1.0",
             }
-            response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
+            response = httpx.post(
+                self.url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+                timeout=30,
+            )
 
             if response.status_code != 200:
                 response.raise_for_status()
@@ -52,8 +62,12 @@ class SIWEClient:
             try:
                 data = response.json()
             except Exception as je:
-                logger.error("SIWEClient: init_siwe JSON decode failed. Content-Type: %s, Body: %s",
-                             response.headers.get("Content-Type"), response.text[:500])
+                logger.error(
+                    "SIWEClient: init_siwe JSON decode failed. "
+                    "Content-Type: %s, Body: %s",
+                    response.headers.get("Content-Type"),
+                    response.text[:500],
+                )
                 raise je
 
             return data.get("data", {}).get("HelloServer", {})
@@ -63,7 +77,7 @@ class SIWEClient:
 
     def verify_siwe(self, signature: str, request_id: str) -> dict[str, Any]:
         """Execute VerifySignature mutation."""
-        query = '''
+        query = """
         mutation VerifySignature($input: VerifySignatureRequestInput!) {
           VerifySignature(input: $input) {
             jwt
@@ -71,17 +85,26 @@ class SIWEClient:
             email
           }
         }
-        '''
+        """
         variables = {"input": {"signature": signature, "requestId": request_id}}
         try:
             headers = {
                 "Accept": "application/json",
-                "User-Agent": "B4iGO-AccountManager/1.0"
+                "User-Agent": "B4iGO-AccountManager/1.0",
             }
-            response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
+            response = httpx.post(
+                self.url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+                timeout=30,
+            )
 
             if response.status_code != 200:
-                logger.error("SIWEClient: verify_siwe failed with status %s: %s", response.status_code, response.text)
+                logger.error(
+                    "SIWEClient: verify_siwe failed with status %s: %s",
+                    response.status_code,
+                    response.text,
+                )
                 response.raise_for_status()
 
             if not response.text.strip():
@@ -91,8 +114,12 @@ class SIWEClient:
             try:
                 data = response.json()
             except Exception as je:
-                logger.error("SIWEClient: verify_siwe JSON decode failed. Content-Type: %s, Body: %s",
-                             response.headers.get("Content-Type"), response.text[:500])
+                logger.error(
+                    "SIWEClient: verify_siwe JSON decode failed. "
+                    "Content-Type: %s, Body: %s",
+                    response.headers.get("Content-Type"),
+                    response.text[:500],
+                )
                 raise je
 
             return data.get("data", {}).get("VerifySignature", {})
@@ -112,7 +139,7 @@ class SIWEClient:
         if not user_id:
             return {"valid": False, "error": "Could not extract user ID from token"}
 
-        query = '''
+        query = """
         query getB4igoProfile($userId: String!) {
           getB4igoProfile(userId: $userId) {
             success
@@ -121,20 +148,32 @@ class SIWEClient:
             }
           }
         }
-        '''
+        """
         variables = {"userId": str(user_id)}
         headers = {
             "Authorization": f"Bearer {raw_token}",
             "Accept": "application/json",
-            "User-Agent": "B4iGO-AccountManager/1.0"
+            "User-Agent": "B4iGO-AccountManager/1.0",
         }
 
         try:
-            response = httpx.post(self.url, json={"query": query, "variables": variables}, headers=headers, timeout=30)
+            response = httpx.post(
+                self.url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+                timeout=30,
+            )
 
             if response.status_code != 200:
-                logger.error("SIWEClient: validate_jwt failed with status %s: %s", response.status_code, response.text)
-                return {"valid": False, "error": f"returned status {response.status_code}"}
+                logger.error(
+                    "SIWEClient: validate_jwt failed with status %s: %s",
+                    response.status_code,
+                    response.text,
+                )
+                return {
+                    "valid": False,
+                    "error": f"returned status {response.status_code}",
+                }
 
             if not response.text.strip():
                 logger.error("SIWEClient: validate_jwt returned empty body")
@@ -142,9 +181,13 @@ class SIWEClient:
 
             try:
                 data = response.json()
-            except Exception as je:
-                logger.error("SIWEClient: validate_jwt JSON decode failed. Content-Type: %s, Body: %s",
-                             response.headers.get("Content-Type"), response.text[:500])
+            except Exception:
+                logger.error(
+                    "SIWEClient: validate_jwt JSON decode failed. "
+                    "Content-Type: %s, Body: %s",
+                    response.headers.get("Content-Type"),
+                    response.text[:500],
+                )
                 return {"valid": False, "error": "Invalid JSON response from"}
 
             profile = data.get("data", {}).get("getB4igoProfile", {})
@@ -193,15 +236,18 @@ class AccountManagerService:
     def validate_token(self, token: str) -> dict[str, Any]:
         """Proxy validate JWT, and save user_id if valid."""
         result = self.siwe_client.validate_jwt(token)
-        if result.get("valid") and result.get("userId"):
-            self.storage.upsert_user(user_id=result.get("userId"), role="user")
+        user_id = result.get("userId")
+        if result.get("valid") and user_id:
+            self.storage.upsert_user(user_id=user_id, role="user")
         return result
 
     def _notify_scheduler(self, b4igo_user_id: str, account_id: int):
         """Notify scheduler to register one account for polling."""
         scheduler_url = os.environ.get("B4IGO_SCHEDULER_URL")
         if not scheduler_url:
-            logger.warning("B4IGO_SCHEDULER_URL not set; skipping scheduler notification")
+            logger.warning(
+                "B4IGO_SCHEDULER_URL not set; skipping scheduler notification"
+            )
             return
 
         url = f"{scheduler_url.rstrip('/')}/api/scheduler/registry"
@@ -209,7 +255,7 @@ class AccountManagerService:
             httpx.post(
                 url,
                 json={"b4igoUserId": b4igo_user_id, "accountId": account_id},
-                timeout=5
+                timeout=5,
             )
             logger.info("Notified scheduler for account %d", account_id)
         except Exception as e:
@@ -235,10 +281,10 @@ class AccountManagerService:
         )
         if account is None:
             return None
-        
+
         # Notify scheduler
         self._notify_scheduler(b4igo_user_id, account.id)
-        
+
         return account.to_public_dict()
 
     def list_accounts(self, b4igo_user_id: str) -> List[Dict[str, Any]]:
@@ -280,8 +326,12 @@ class AccountManagerService:
 
         # Build default redirect URL if none provided
         if not oauth_callback_url:
-            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
-            oauth_callback_url = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
+            am_public_url = os.environ.get(
+                "B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100"
+            )
+            oauth_callback_url = (
+                f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
+            )
 
         steps = adapter.GetSetup(
             account_id=b4igo_user_id,
@@ -369,8 +419,12 @@ class AccountManagerService:
 
         # Build default redirect URL if none provided
         if not redirect_uri:
-            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
-            redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
+            am_public_url = os.environ.get(
+                "B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100"
+            )
+            redirect_uri = (
+                f"{am_public_url.rstrip('/')}/api/providers/{provider}/oauth/callback"
+            )
 
         # inject config for provider
         args = dict(request_args)
@@ -378,19 +432,19 @@ class AccountManagerService:
         args["redirect_uri"] = redirect_uri
 
         result = adapter.HandleCallback(args, self.storage)
-        
+
         if isinstance(result, dict) and result.get("success"):
             account_id = result.get("accountId")
             b4igo_user_id = result.get("b4igoUserId")
             if account_id and b4igo_user_id:
                 self._notify_scheduler(b4igo_user_id, account_id)
             return result
-        
+
         if isinstance(result, str):
-            if not result: # Success
-                 return {"success": True}
+            if not result:  # Success
+                return {"success": True}
             return {"success": False, "error": result}
-            
+
         return result
 
     def pull(self, b4igo_user_id: str, account_ids: List[int] = []) -> Dict[str, Any]:

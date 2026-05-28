@@ -109,8 +109,7 @@ class AccountStorage:
                 )
 
             row = conn.execute(
-                "SELECT id, role, created_at, updated_at"
-                " FROM users WHERE id = ?",
+                "SELECT id, role, created_at, updated_at" " FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
 

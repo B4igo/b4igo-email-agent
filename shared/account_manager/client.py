@@ -73,7 +73,9 @@ class AccountManagerClient:
     def auth_validate(self, token: str) -> requests.Response:
         """Validate JWT via SIWE using Bearer token."""
         headers = self._headers()
-        headers["Authorization"] = token if token.startswith("Bearer ") else f"Bearer {token}"
+        headers["Authorization"] = (
+            token if token.startswith("Bearer ") else f"Bearer {token}"
+        )
         return requests.get(
             f"{self.base_url}/api/auth/validate",
             headers=headers,

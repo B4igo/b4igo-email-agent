@@ -125,7 +125,9 @@ def parse_text() -> FlaskResponse:
         )
 
     for entry in entries:
-        enqueue_confirmation(payload.get("username"), entry.model_dump_json(), entry.__class__.__name__)
+        enqueue_confirmation(
+            payload.get("username"), entry.model_dump_json(), entry.__class__.__name__
+        )
 
     return (
         jsonify({"status": "processed"}),
@@ -164,7 +166,9 @@ def parse_text_with_attachments() -> FlaskResponse:
     text = _append_attachments_to_text(files, text)
     entries = pipeline(text)
     for entry in entries:
-        enqueue_confirmation(username, entry.model_dump_json(), entry.__class__.__name__)
+        enqueue_confirmation(
+            username, entry.model_dump_json(), entry.__class__.__name__
+        )
 
     return (
         jsonify({"status": "processed"}),

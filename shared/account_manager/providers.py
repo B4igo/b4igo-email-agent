@@ -3,6 +3,7 @@
 import base64
 import email
 import imaplib
+import os
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from email.message import Message
@@ -391,8 +392,12 @@ class GmailProvider(EmailProvider):
         client_secrets_file = kwargs.get("client_secrets_file", "client_secrets.json")
         redirect_uri = kwargs.get("redirect_uri")
         if not redirect_uri:
-            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
-            redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/gmail/oauth/callback"
+            am_public_url = os.environ.get(
+                "B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100"
+            )
+            redirect_uri = (
+                f"{am_public_url.rstrip('/')}/api/providers/gmail/oauth/callback"
+            )
         connector_name = kwargs.get("connector_name")
 
         if not account_id or not storage:
@@ -459,8 +464,12 @@ class GmailProvider(EmailProvider):
         )
         redirect_uri = request_args.get("redirect_uri")
         if not redirect_uri:
-            am_public_url = os.environ.get("B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100")
-            redirect_uri = f"{am_public_url.rstrip('/')}/api/providers/gmail/oauth/callback"
+            am_public_url = os.environ.get(
+                "B4IGO_ACCOUNT_MANAGER_PUBLIC_URL", "http://127.0.0.1:5100"
+            )
+            redirect_uri = (
+                f"{am_public_url.rstrip('/')}/api/providers/gmail/oauth/callback"
+            )
 
         if not state or not auth_code:
             if state:

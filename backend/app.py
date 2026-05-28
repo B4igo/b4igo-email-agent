@@ -7,23 +7,19 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from typing import Any
-from urllib.parse import urlencode
-from uuid import uuid4
 
 import flask
-from flask import Flask, jsonify, redirect, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from requests import RequestException
+from werkzeug.utils import secure_filename
 
 from shared.account_manager.client import AccountManagerClient
 from shared.database import db
-from shared.vault.client import VaultClient
-from shared.vault.utils import parse_vault_record
 from shared.graphql_mapper import execute_graphql_mutation
-from werkzeug.utils import secure_filename
 
 # TODO look through all these and make sure this is for all/most text documents
-ALLOWED_FILE_EXTENSIONS = {'txt', 'pdf', 'md', 'docx'}
+ALLOWED_FILE_EXTENSIONS = {"txt", "pdf", "md", "docx"}
 
 # LOGGING
 # configure logging (does not show in production
@@ -44,9 +40,9 @@ app = Flask(__name__)
 # flask-cors echo the matched origin back. Defaults to the local dev frontend.
 cors_origins = [
     origin.strip()
-    for origin in os.environ.get(
-        "B4IGO_CORS_ORIGINS", "http://localhost:5173"
-    ).split(",")
+    for origin in os.environ.get("B4IGO_CORS_ORIGINS", "http://localhost:5173").split(
+        ","
+    )
     if origin.strip()
 ]
 CORS(app, origins=cors_origins, supports_credentials=True)
@@ -68,9 +64,18 @@ backend_base_url = os.environ.get("B4IGO_BACKEND_URL", "http://localhost:5000").
     "/"
 )
 
-AI_SERVICE_URL = os.environ.get("B4IGO_AI_SERVICE_URL", "http://localhost:5300").rstrip("/")
+AI_SERVICE_URL = os.environ.get("B4IGO_AI_SERVICE_URL", "http://localhost:5300").rstrip(
+    "/"
+)
+
 
 def jwt_required():
+    """Decorator factory that requires a valid JWT on the request.
+
+    Validates the Authorization header against account-manager and stores the
+    resolved user id on ``flask.g.current_user`` before calling the view.
+    """
+
     def wrapper(fn):
         @wraps(fn)
         def decorator(*args, **kwargs):
@@ -91,7 +96,9 @@ def jwt_required():
                 logger.error("Token validation failed: %s", e)
 
             return jsonify({"error": "Invalid or expired token"}), 401
+
         return decorator
+
     return wrapper
 
 
@@ -118,8 +125,9 @@ def auth_init():
     try:
         response = account_manager_client.auth_init(address)
         return jsonify(response.json()), response.status_code
-    except RequestException as exc:
+    except RequestException:
         return jsonify({"error": "Authentication service unavailable"}), 503
+
 
 @app.route("/api/auth/verify", methods=["POST"])
 def auth_verify():
@@ -140,9 +148,14 @@ def auth_verify():
         logger.error("AccountManager auth verify failed: %s", exc)
         return jsonify({"error": "Authentication service unavailable"}), 503
 
+
 @app.route("/api/auth/logout", methods=["POST"])
 def logout():
-    """Frontend handles JWT clearing. Return a 200, this will remain for any future changes to the auth flow."""
+    """Log out the current user.
+
+    The frontend clears the JWT. This returns 200 and is kept as a hook for any
+    future server-side changes to the auth flow.
+    """
     return jsonify({"message": "Logged out"}), 200
 
 
@@ -214,7 +227,10 @@ def enqueue_confirmation():
         confirmation_id = db.add_confirmation(user_id, json_payload, schema_name)
         if confirmation_id:
             logger.info(
-                "enqueued confirmation id %s for user %s with schema %s", confirmation_id, user_id, schema_name
+                "enqueued confirmation id %s for user %s with schema %s",
+                confirmation_id,
+                user_id,
+                schema_name,
             )
             return (
                 jsonify(
@@ -281,7 +297,16 @@ def reject_confirmation():
 
     except Exception as e:
         logger.error("error rejecting confirmation: %s", e, exc_info=True)
-        return jsonify({"error": str(e) if str(e) else "Internal server error or invalid request"}), 400
+        return (
+            jsonify(
+                {
+                    "error": (
+                        str(e) if str(e) else "Internal server error or invalid request"
+                    )
+                }
+            ),
+            400,
+        )
 
 
 # handles both blanket accept and edits
@@ -295,7 +320,9 @@ def accept_confirmation():
             raise Exception("missing id parameter")
 
         conf_id = data["id"]
-        schema_name = data.get("schemaName", "Unknown") # Provided by frontend for GraphQL routing
+        schema_name = data.get(
+            "schemaName", "Unknown"
+        )  # Provided by frontend for GraphQL routing
         current_user = flask.g.current_user
 
         if not db.confirmation_exists(conf_id):
@@ -311,10 +338,14 @@ def accept_confirmation():
             if not conf:
                 return jsonify({"error": "Confirmation not found"}), 404
 
-            # The database might return json_payload or jsonPayload depending on serialization
+            # The database might return json_payload or jsonPayload
+            # depending on serialization
             raw = conf.get("jsonPayload") or conf.get("json_payload")
             if raw is None:
-                return jsonify({"error": "Invalid confirmation format in database"}), 500
+                return (
+                    jsonify({"error": "Invalid confirmation format in database"}),
+                    500,
+                )
 
         # Normalize to dict if string
         if isinstance(raw, str):
@@ -327,30 +358,44 @@ def accept_confirmation():
             payload = raw if isinstance(raw, dict) else {}
 
         jwt_token = request.headers.get("Authorization", "")
-        error_msg = execute_graphql_mutation(current_user, schema_name, payload, jwt_token)
+        error_msg = execute_graphql_mutation(
+            current_user, schema_name, payload, jwt_token
+        )
 
         if error_msg:
-            logger.warning("GraphQL write failed for confirmation #%s: %s", conf_id, error_msg)
+            logger.warning(
+                "GraphQL write failed for confirmation #%s: %s", conf_id, error_msg
+            )
             return jsonify({"error": f"Vault write failed: {error_msg}"}), 502
 
-        logger.info(
-            "added confirmation #%s to vault via GraphQL setup", conf_id
-        )
+        logger.info("added confirmation #%s to vault via GraphQL setup", conf_id)
 
         db.remove_confirmation(conf_id)
         return "", 200
 
     except Exception as e:
         logger.error("error accepting confirmation: %s", e, exc_info=True)
-        return jsonify({"error": str(e) if str(e) else "Internal server error or invalid request"}), 400
+        return (
+            jsonify(
+                {
+                    "error": (
+                        str(e) if str(e) else "Internal server error or invalid request"
+                    )
+                }
+            ),
+            400,
+        )
+
 
 @app.route("/api/file/types", methods=["GET"])
 def get_file_types():
     """Get allowed file types for upload."""
     return jsonify({"allowed_file_types": list(ALLOWED_FILE_EXTENSIONS)}), 200
 
+
 def _background_ai_upload(user_id: str, files_data: list):
     import requests
+
     try:
         # Include internal service token
         headers = {}
@@ -363,12 +408,13 @@ def _background_ai_upload(user_id: str, files_data: list):
             data={"username": user_id, "text": ""},
             files=files_data,
             headers=headers,
-            timeout=30
+            timeout=30,
         )
         if response.status_code not in (200, 201, 202):
             logger.error("Failed to send files to AI pipeline: %s", response.text)
     except Exception as e:
         logger.error("Error calling AI pipeline: %s", e)
+
 
 @app.route("/api/file/upload", methods=["POST"])
 @jwt_required()
@@ -377,15 +423,17 @@ def upload_files():
     current_user = flask.g.current_user
 
     def allowed_file(filename):
-        return '.' in filename and \
-            filename.rsplit('.', 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
+        return (
+            "." in filename
+            and filename.rsplit(".", 1)[1].lower() in ALLOWED_FILE_EXTENSIONS
+        )
 
-    if 'files' not in request.files:
+    if "files" not in request.files:
         return jsonify({"error": "No 'files' found in the request."}), 400
 
-    files = request.files.getlist('files')
+    files = request.files.getlist("files")
 
-    if not files or files[0].filename == '':
+    if not files or files[0].filename == "":
         return jsonify({"error": "No files selected."}), 400
 
     accepted_files = []
@@ -399,22 +447,32 @@ def upload_files():
             rejected_files.append(file.filename)
 
     if len(rejected_files) > 0:
-        return jsonify({"error": "Invalid file type(s)", "rejected_files": rejected_files}), 400
+        return (
+            jsonify(
+                {"error": "Invalid file type(s)", "rejected_files": rejected_files}
+            ),
+            400,
+        )
     else:
         files_payload = []
         for file in files:
             file.seek(0)
-            files_payload.append(('files', (file.filename, file.read(), file.mimetype)))
+            files_payload.append(("files", (file.filename, file.read(), file.mimetype)))
 
-        #TODO: need to catch errors sending to the ai service.
+        # TODO: need to catch errors sending to the ai service.
         executor.submit(_background_ai_upload, current_user, files_payload)
 
-        return jsonify({
-            "message": "Files processed",
-            "username": current_user,
-            "accepted_files": accepted_files,
-            "rejected_files": rejected_files
-        }), 200
+        return (
+            jsonify(
+                {
+                    "message": "Files processed",
+                    "username": current_user,
+                    "accepted_files": accepted_files,
+                    "rejected_files": rejected_files,
+                }
+            ),
+            200,
+        )
 
 
 @app.route("/api/email-connectors", methods=["GET"])
@@ -488,7 +546,10 @@ def get_connector_setup(connector_type):
     """Get setup steps for a provider and normalize callback URLs for frontend."""
     current_user = flask.g.current_user
     try:
-        callback_url = f"{request.host_url.rstrip('/')}/api/email-connectors/oauth/callback/{connector_type}"
+        callback_url = (
+            f"{request.host_url.rstrip('/')}"
+            f"/api/email-connectors/oauth/callback/{connector_type}"
+        )
         response = account_manager_client.get_provider_setup(
             provider=connector_type,
             b4igo_user_id=current_user,
@@ -554,7 +615,10 @@ def provider_oauth_callback(provider: str):
         if not auth_code or not state:
             return "Missing OAuth code or state", 400
 
-        callback_url = f"{request.host_url.rstrip('/')}/api/email-connectors/oauth/callback/{provider}"
+        callback_url = (
+            f"{request.host_url.rstrip('/')}"
+            f"/api/email-connectors/oauth/callback/{provider}"
+        )
         response = account_manager_client.complete_provider_oauth(
             provider=provider,
             auth_code=auth_code,
@@ -562,7 +626,9 @@ def provider_oauth_callback(provider: str):
             oauth_callback_url=callback_url,
         )
         if response.status_code >= 400:
-            logger.warning("provider oauth callback failed for %s: %s", provider, response.text)
+            logger.warning(
+                "provider oauth callback failed for %s: %s", provider, response.text
+            )
             return f"OAuth callback failed: {response.text}", 400
 
         return """
@@ -577,6 +643,7 @@ def provider_oauth_callback(provider: str):
     except Exception as e:
         logger.error("error in provider oauth callback for %s: %s", provider, e)
         return "Failed to complete authorization", 500
+
 
 @app.route("/api/accounts/link", methods=["POST"])
 @jwt_required()

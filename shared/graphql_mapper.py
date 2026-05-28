@@ -1,12 +1,12 @@
-﻿import os
-import json
+﻿import json
 import logging
-from typing import Optional, Dict, Any
+import os
+from typing import Any, Dict, Optional
 
 try:
     import requests
 except ImportError:
-    requests = None
+    requests = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +17,16 @@ SCHEMA_TO_INPUT_TYPE = {
     "Medication": "createMedicationAndAllergyInput",
     "MedicalHistory": "CreateMedicalHistoryInput",
     "Appointment": "createNotesInput",  # Fallback since no specific match
-    "Bill": "createNotesInput",          # Fallback
+    "Bill": "createNotesInput",  # Fallback
     "Contact": "CreateContactInput",
-    "Attorney": "CreateContactInput",    # Map to contact or note
-    "PersonalEvent": "createNotesInput", # Fallback
-    "Reminder": "createNotesInput",      # Fallback
+    "Attorney": "CreateContactInput",  # Map to contact or note
+    "PersonalEvent": "createNotesInput",  # Fallback
+    "Reminder": "createNotesInput",  # Fallback
     "Contract": "AddLegalDocumentsInput",
     "CourtDate": "AddLegalDocumentsInput",
     "LegalNotice": "AddLegalDocumentsInput",
 }
+
 
 def _build_doctor_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -33,8 +34,9 @@ def _build_doctor_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "typeId": 99,
         "doctorName": payload.get("doctor_name", "Unknown Doctor"),
         "contactInformation": payload.get("location", ""),
-        "markAsImportant": False
+        "markAsImportant": False,
     }
+
 
 def _build_insurance_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -44,8 +46,9 @@ def _build_insurance_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any
         "dependents": [],
         "files": [],
         "othersValue": payload.get("type_of_health_insurance", ""),
-        "markAsImportant": False
+        "markAsImportant": False,
     }
+
 
 def _build_medication_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -56,8 +59,9 @@ def _build_medication_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, An
         "startDate": payload.get("date", ""),
         "medicationFiles": [],
         "markAsImportant": False,
-        "current": True
+        "current": True,
     }
+
 
 def _build_medical_history_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -65,8 +69,9 @@ def _build_medical_history_vars(userId: str, payload: Dict[str, Any]) -> Dict[st
         "typeOfRecordId": 99,
         "recordTypeName": payload.get("disease", "Unknown Condition"),
         "recordDate": payload.get("date", ""),
-        "files": []
+        "files": [],
     }
+
 
 def _build_contact_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -77,8 +82,9 @@ def _build_contact_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "contactNumber": payload.get("phone", ""),
         "relationship": payload.get("relationship", "") or payload.get("specialty", ""),
         "companyName": payload.get("firm", ""),
-        "Others": payload.get("notes", "")
+        "Others": payload.get("notes", ""),
     }
+
 
 def _build_legal_docs_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -86,24 +92,35 @@ def _build_legal_docs_vars(userId: str, payload: Dict[str, Any]) -> Dict[str, An
         "documentTypeId": 99,
         "lawyerTypeId": 99,
         "contactIds": [],
-        "legalSubject": payload.get("title", "") or payload.get("subject", "") or payload.get("type", ""),
+        "legalSubject": payload.get("title", "")
+        or payload.get("subject", "")
+        or payload.get("type", ""),
         "caseNumber": payload.get("case_number", ""),
         "countryId": 99,
         "stateId": 99,
-        "files": []
+        "files": [],
     }
 
-def _build_notes_vars(userId: str, schema_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+
+def _build_notes_vars(
+    userId: str, schema_name: str, payload: Dict[str, Any]
+) -> Dict[str, Any]:
     note_content = f"[{schema_name}] " + json.dumps(payload, indent=2)
     return {
         "userId": userId,
         "noteContent": note_content,
         "markAsImportant": False,
-        "NotesFiles": []
+        "NotesFiles": [],
     }
 
-def map_schema_to_graphql_variables(schema_name: str, userId: str, payload: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
-    # Fallback to notes if schema is totally unknown
+
+def map_schema_to_graphql_variables(
+    schema_name: str, userId: str, payload: Dict[str, Any]
+) -> tuple[str, Dict[str, Any]]:
+    """Map an AI schema name and payload to a GraphQL input type and variables.
+
+    Falls back to a generic note (``createNotesInput``) for unknown schemas.
+    """
     input_type = SCHEMA_TO_INPUT_TYPE.get(schema_name, "createNotesInput")
 
     try:
@@ -122,8 +139,11 @@ def map_schema_to_graphql_variables(schema_name: str, userId: str, payload: Dict
         else:
             return "createNotesInput", _build_notes_vars(userId, schema_name, payload)
     except Exception as e:
-        logger.warning(f"Error mapping payload to {input_type}, falling back to notes: {e}")
+        logger.warning(
+            f"Error mapping payload to {input_type}, falling back to notes: {e}"
+        )
         return "createNotesInput", _build_notes_vars(userId, schema_name, payload)
+
 
 def _build_mutation_string(input_type: str) -> str:
     # Basic matching from Input type to Mutation name
@@ -144,29 +164,35 @@ mutation($input: {input_type}!) {{
 }}
 """
 
-def execute_graphql_mutation(user_id: str, schema_name: str, payload: Dict[str, Any], jwt_token: str) -> Optional[str]:
-    """
-    Executes the appropriate GraphQL mutation for the extracted AI fields.
-    Returns an error message string if failed, or None on success.
+
+def execute_graphql_mutation(
+    user_id: str, schema_name: str, payload: Dict[str, Any], jwt_token: str
+) -> Optional[str]:
+    """Execute the appropriate GraphQL mutation for the extracted AI fields.
+
+    Returns an error message string if it failed, or None on success.
     """
     if not requests:
         return "requests module is required"
 
-    base_url = (os.environ.get("B4IGO_API_BASE_URL") or "http://localhost:5000").rstrip("/")
+    base_url = (os.environ.get("B4IGO_API_BASE_URL") or "http://localhost:5000").rstrip(
+        "/"
+    )
     # graphql_url = f"{base_url}/graphql"
 
-    input_type, variables = map_schema_to_graphql_variables(schema_name, user_id, payload)
+    input_type, variables = map_schema_to_graphql_variables(
+        schema_name, user_id, payload
+    )
     query = _build_mutation_string(input_type)
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": jwt_token if jwt_token.startswith("Bearer ") else f"Bearer {jwt_token}"
+        "Authorization": (
+            jwt_token if jwt_token.startswith("Bearer ") else f"Bearer {jwt_token}"
+        ),
     }
 
-    body = {
-        "query": query,
-        "variables": {"input": variables}
-    }
+    body = {"query": query, "variables": {"input": variables}}
 
     try:
         response = requests.post(base_url, json=body, headers=headers, timeout=10)
@@ -185,4 +211,3 @@ def execute_graphql_mutation(user_id: str, schema_name: str, payload: Dict[str, 
     except Exception as e:
         logger.error(f"Failed to execute GraphQL mutation: {e}", exc_info=True)
         return str(e)
-

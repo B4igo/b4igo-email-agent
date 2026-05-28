@@ -46,7 +46,9 @@ class Database:
             """
             )
 
-    def add_confirmation(self, user_id: str, json_payload: str, schema_name: str) -> Optional[int]:
+    def add_confirmation(
+        self, user_id: str, json_payload: str, schema_name: str
+    ) -> Optional[int]:
         """Add a new confirmation for a user.
 
         Args:
@@ -60,7 +62,8 @@ class Database:
         try:
             with self._get_connection() as conn:
                 cursor = conn.execute(
-                    "INSERT INTO confirmations (user_id, json_payload, schema_name) VALUES (?, ?, ?)",
+                    "INSERT INTO confirmations (user_id, json_payload, schema_name) "
+                    "VALUES (?, ?, ?)",
                     (user_id, json_payload, schema_name),
                 )
                 return cursor.lastrowid
@@ -78,7 +81,8 @@ class Database:
         """
         with self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT id, json_payload, schema_name FROM confirmations WHERE user_id = ?",
+                "SELECT id, json_payload, schema_name FROM confirmations "
+                "WHERE user_id = ?",
                 (user_id,),
             )
             return [dict(row) for row in cursor.fetchall()]

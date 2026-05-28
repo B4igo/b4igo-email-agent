@@ -71,7 +71,7 @@ def auth_verify():
 
 @app.route("/api/auth/validate", methods=["GET"])
 def auth_validate():
-    """Validate JWT token"""
+    """Validate a JWT token."""
     auth_error = _validate_internal_auth()
     if auth_error:
         return auth_error
@@ -235,13 +235,9 @@ def run_provider_step_callback(provider: str, function_name: str):
 @app.route("/api/providers/<provider>/oauth/callback", methods=["GET", "POST"])
 def complete_provider_oauth(provider: str):
     """Complete provider OAuth callback and upsert linked account."""
-
     if request.method == "POST":
         payload = request.get_json(silent=True) or {}
-        request_args = {
-            "code": payload.get("code"),
-            "state": payload.get("state")
-        }
+        request_args = {"code": payload.get("code"), "state": payload.get("state")}
         redirect_uri = payload.get("oauthCallbackUrl")
     else:
         request_args = request.args.to_dict()
