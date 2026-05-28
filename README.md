@@ -31,6 +31,19 @@ Components:
 - **admin-panel** (port 5400, demo only): operations UI for inspecting
   containers, sending test emails, and running an end-to-end pipeline check.
 
+## Documentation
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): services, the end-to-end pipeline,
+  the shared package, and service-to-service contracts.
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md): every environment variable, its
+  default, and which values must change for production.
+- [docs/ROADMAP.md](docs/ROADMAP.md): known limitations and open work.
+- Per-service notes live in each service's `README.md` (`backend/`, `ai_service/`,
+  `scheduler/`, `account_manager/`, `admin_panel/`, `frontend/`).
+- [docs/integration/](docs/integration/): vault and confirmation API references.
+  `docs/integration/API.md` is an imported copy of B4iGO's own gateway API reference
+  and is kept verbatim.
+
 ## Running the demo
 
 The demo packages the full stack as a single `docker compose` setup. Useful
@@ -99,15 +112,27 @@ Per-component requirements:
 
 | Service          | Port | Required configuration                                                                              |
 |------------------|------|-----------------------------------------------------------------------------------------------------|
-| account-manager  | 5100 | `B4IGO_ACCOUNT_DB_PATH`, `B4IGO_ACCOUNT_MANAGER_TOKEN`                                              |
+| account-manager  | 5100 | `B4IGO_ACCOUNT_DB_PATH`, `B4IGO_ACCOUNT_MANAGER_TOKEN`, `B4IGO_BACKEND_GRAPHQL_URL`                 |
 | redis            | 6379 | none                                                                                                |
-| scheduler        | 5200 | `REDIS_HOST`, `REDIS_PORT`, `ACCOUNT_MANAGER_URL`, `AI_SERVICE_URL`, `POLL_INTERVAL_SECONDS`        |
+| scheduler        | 5200 | `REDIS_HOST`, `REDIS_PORT`, `B4IGO_ACCOUNT_MANAGER_URL`, `B4IGO_AI_SERVICE_URL`, `POLL_INTERVAL_SECONDS` |
 | ai-service       | 5300 | `OLLAMA_HOST`, `BACKEND_URL`, optional `PARSER_MODEL`, `RERANKER_MODEL`                             |
-| backend          | 5000 | `B4IGO_ACCOUNT_MANAGER_URL`, `B4IGO_ACCOUNT_MANAGER_TOKEN`, `B4IGO_FRONTEND_URL`                    |
-| frontend         | 5173 | `SERVER_HTTP` pointing at the backend                                                               |
+| backend          | 5000 | `B4IGO_ACCOUNT_MANAGER_URL`, `B4IGO_ACCOUNT_MANAGER_TOKEN`, `B4IGO_FRONTEND_URL`, `B4IGO_CORS_ORIGINS`, `B4IGO_API_BASE_URL` |
+| frontend         | 5173 | `VITE_BACKEND_URL` pointing at the backend `/api`                                                   |
+
+Every environment variable, its default, and which service reads it is documented in
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 Choices that matter:
 
+- Set `B4IGO_CORS_ORIGINS` (comma-separated) to the frontend origin the browser
+  app is served from, plus any `chrome-extension://<id>` origin if the extension
+  calls the backend. It defaults to `http://localhost:5173` for the demo. A
+  wildcard origin is not valid for credentialed requests, so the backend will not
+  accept browser calls from an origin that is not listed.
+- Update the Google OAuth `client_secrets.json` redirect URIs and the browser
+  extension hosts in `frontend/public/manifest.json` to your production domain.
+  The real `client_secrets.json` is gitignored; start from
+  `client_secrets.json.example`.
 - Set `B4IGO_ACCOUNT_MANAGER_TOKEN` so internal calls share a secret. Without
   it, the internal endpoints on account-manager are open. The same token must
   be present on every service that calls account-manager.
@@ -189,6 +214,20 @@ To run the frontend as an extension:
 4. Click Load unpacked. 
 5. Select the `frontend/dist` folder.
 
+
+## Testing
+
+Run the test suite from the repo root:
+
+```bash
+pytest
+```
+
+The ML-free unit tests under `shared/` run anywhere. The `ai_service/ai_pipeline`
+accuracy tests drive a real local Ollama server and are skipped unless you set
+`RUN_OLLAMA_TESTS=1`. CI runs the ML-free suites on every push and pull request to
+`main`. See [docs/Tests.md](docs/Tests.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for
+coverage gaps.
 
 ## Using commit hooks
 
