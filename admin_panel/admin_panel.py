@@ -1,4 +1,4 @@
-"""B4iGO admin panel — FastAPI service.
+"""B4iGO admin panel - FastAPI service.
 
 Single-file FastAPI app exposing the routes described in templates/. Anything
 non-trivial lives in `docker_ops.py` (Docker socket interactions) or

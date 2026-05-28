@@ -216,7 +216,7 @@ services:
   # ──────────────────────────────────────────────
   # Bootstrap (one-shot): link the demo IMAP mailbox and register it with the
   # scheduler so polling kicks off. Stand-in for what a real user would do via
-  # the "Link account" frontend flow. Idempotent — safe to re-run.
+  # the "Link account" frontend flow. Idempotent - safe to re-run.
   # ──────────────────────────────────────────────
   bootstrap:
     build: ./bootstrap

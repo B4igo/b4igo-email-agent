@@ -24,9 +24,9 @@ accelerator_options = AcceleratorOptions(num_threads=8, device=AcceleratorDevice
 pipeline_options = PdfPipelineOptions()
 pipeline_options.accelerator_options = accelerator_options
 
-# TODO: GPU processing is not working on my (Jake's) machine for some reason
-# this uses cpu instead
-# TODO: Do you need to specify cpu for each input type?
+# Docling runs on CPU here. GPU acceleration was unreliable during development,
+# so the device is pinned to CPU for predictable behavior. Revisit if a GPU
+# runtime is available in production. See docs/ROADMAP.md.
 converter = DocumentConverter(
     format_options={
         InputFormat.PDF: PdfFormatOption(
@@ -99,7 +99,7 @@ def parse_text() -> FlaskResponse:
 
     Calls AI pipeline on passed text and enqueues entries in confirmation
     queue. If ``dry_run`` is true (body field or ``?dry_run=1`` query), the
-    parsed entries are returned without being enqueued — used by the admin
+    parsed entries are returned without being enqueued - used by the admin
     panel's AI playground.
 
     Returns

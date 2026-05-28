@@ -2,7 +2,7 @@
 
 All functions assume `/var/run/docker.sock` is mounted into this container.
 The set of containers the panel manages is restricted to `config.PANEL_CONTAINERS`
-to keep the blast radius bounded — even if someone slips through the auth gate
+to keep the blast radius bounded - even if someone slips through the auth gate
 they can't shell into arbitrary containers on the host.
 """
 

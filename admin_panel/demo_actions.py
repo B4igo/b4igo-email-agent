@@ -258,7 +258,7 @@ def one_click_reset() -> tuple[bool, list[str]]:
     Wipes the backend confirmation queue and the scheduler's transient Redis
     queues (mail_pull_queue, dead_mail_queue), then restarts the backend so any
     in-memory state is cleared. We deliberately do *not* drop the maildata
-    volume or the linked-account registry — a full data wipe requires
+    volume or the linked-account registry - a full data wipe requires
     `docker compose down -v`, which can't be triggered from inside a container.
     """
     log: list[str] = []

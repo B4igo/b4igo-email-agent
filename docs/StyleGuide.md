@@ -1,5 +1,4 @@
 # Style Guide
-Written by Jake Touchet
 
 ## Python
 This project is written purely in Python. Thus, this document provides a
